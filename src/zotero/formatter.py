@@ -1,10 +1,13 @@
 """Markdown formatting functions for Zotero items."""
 
+import logging
 import os
 import re
 from datetime import datetime
 
 from src.zotero.types import Creator, ZoteroItem
+
+logger = logging.getLogger(__name__)
 
 
 def escape_markdown(text: str) -> str:
@@ -191,8 +194,11 @@ def write_digest(content: str, output_path: str) -> None:
     
     # Write file
     try:
+        logger.info("Writing digest to %s", output_path)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(content)
+        logger.info("Successfully wrote digest file (%d characters)", len(content))
     except Exception as e:
+        logger.error("Failed to write digest file: %s", e)
         raise IOError(f"Failed to write digest file: {e}") from e
 

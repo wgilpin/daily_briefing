@@ -1,11 +1,14 @@
 """Zotero API client wrapper."""
 
+import logging
 from datetime import datetime, timedelta
 
 from pyzotero import zotero
 
 from src.zotero import AuthenticationError, ZoteroConnectionError
 from src.zotero.types import ZoteroItem
+
+logger = logging.getLogger(__name__)
 
 
 def create_zotero_client(library_id: str, api_key: str) -> zotero.Zotero:
@@ -21,7 +24,7 @@ def create_zotero_client(library_id: str, api_key: str) -> zotero.Zotero:
 
     Raises:
         AuthenticationError: If credentials are invalid
-        ConnectionError: If connection to API fails
+        ZoteroConnectionError: If connection to API fails
     """
     try:
         # Initialize client for user's personal library
@@ -70,8 +73,10 @@ def fetch_recent_items(client: zotero.Zotero, days: int) -> list[ZoteroItem]:
     cutoff_iso = cutoff.isoformat()
 
     try:
+        logger.info("Fetching items added since %s (last %d day(s))", cutoff_iso, days)
         # Fetch items added since cutoff
         items = client.items(since=cutoff_iso)
+        logger.info("Fetched %d item(s) from Zotero API", len(items))
         return items
     except Exception as e:
         error_msg = str(e).lower()

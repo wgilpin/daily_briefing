@@ -161,15 +161,15 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T049 [P] Update README.md with setup instructions and usage examples from quickstart.md
-- [ ] T050 [P] Add docstrings to all public functions in src/zotero/, src/cli/, src/utils/
-- [ ] T051 [P] Add type hints to all function signatures per Python 3.13+ best practices
-- [ ] T052 Code cleanup and refactoring - ensure consistent error handling patterns across all modules
-- [ ] T053 [P] Add logging statements for key operations (fetch start, item count, file write) in src/zotero/client.py and src/zotero/formatter.py
-- [ ] T054 Run quickstart.md validation - verify all examples work as documented
-- [ ] T055 [P] Add .env.example file with placeholder values for ZOTERO_LIBRARY_ID and ZOTERO_API_KEY
-- [ ] T056 [P] Document Success Criteria validation approach: SC-001 (performance) via manual timing, SC-002 (setup time) via user testing, SC-003 (markdown rendering) via visual inspection, SC-004 (item count) via automated test, SC-005 (error messages) via manual testing
-- [ ] T057 Create validation checklist in README.md or docs/ for verifying all Success Criteria are met
+- [X] T049 [P] Update README.md with setup instructions and usage examples from quickstart.md
+- [X] T050 [P] Add docstrings to all public functions in src/zotero/, src/cli/, src/utils/
+- [X] T051 [P] Add type hints to all function signatures per Python 3.13+ best practices
+- [X] T052 Code cleanup and refactoring - ensure consistent error handling patterns across all modules
+- [X] T053 [P] Add logging statements for key operations (fetch start, item count, file write) in src/zotero/client.py and src/zotero/formatter.py
+- [X] T054 Run quickstart.md validation - verify all examples work as documented
+- [X] T055 [P] Add .env.example file with placeholder values for ZOTERO_LIBRARY_ID and ZOTERO_API_KEY
+- [X] T056 [P] Document Success Criteria validation approach: SC-001 (performance) via manual timing, SC-002 (setup time) via user testing, SC-003 (markdown rendering) via visual inspection, SC-004 (item count) via automated test, SC-005 (error messages) via manual testing
+- [X] T057 Create validation checklist in README.md or docs/ for verifying all Success Criteria are met
 
 ---
 
