@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pyzotero import zotero
 
 from src.zotero import AuthenticationError, ZoteroConnectionError
+from src.zotero.types import ZoteroItem
 
 
 def create_zotero_client(library_id: str, api_key: str) -> zotero.Zotero:
@@ -28,16 +29,24 @@ def create_zotero_client(library_id: str, api_key: str) -> zotero.Zotero:
         return client
     except Exception as e:
         error_msg = str(e).lower()
-        if "authentication" in error_msg or "unauthorized" in error_msg or "401" in error_msg:
+        if (
+            "authentication" in error_msg
+            or "unauthorized" in error_msg
+            or "401" in error_msg
+        ):
             raise AuthenticationError() from e
-        if "connection" in error_msg or "network" in error_msg or "timeout" in error_msg:
+        if (
+            "connection" in error_msg
+            or "network" in error_msg
+            or "timeout" in error_msg
+        ):
             raise ZoteroConnectionError() from e
         # Re-raise other exceptions as ZoteroConnectionError for now
         # (could be refined based on actual pyzotero exception types)
         raise ZoteroConnectionError(f"Failed to initialize Zotero client: {e}") from e
 
 
-def fetch_recent_items(client: zotero.Zotero, days: int) -> list[dict]:
+def fetch_recent_items(client: zotero.Zotero, days: int) -> list[ZoteroItem]:
     """
     Retrieve library items added within the specified time window.
 
@@ -55,34 +64,39 @@ def fetch_recent_items(client: zotero.Zotero, days: int) -> list[dict]:
     """
     if days <= 0:
         raise ValueError("days must be a positive integer")
-    
+
     # Calculate cutoff timestamp
     cutoff = datetime.now() - timedelta(days=days)
     cutoff_iso = cutoff.isoformat()
-    
+
     try:
         # Fetch items added since cutoff
         items = client.items(since=cutoff_iso)
         return items
     except Exception as e:
         error_msg = str(e).lower()
-        
+
         # Check for authentication errors
-        if any(keyword in error_msg for keyword in ["authentication", "unauthorized", "401", "403"]):
+        if any(
+            keyword in error_msg
+            for keyword in ["authentication", "unauthorized", "401", "403"]
+        ):
             raise AuthenticationError(
                 "Invalid Zotero API credentials. "
                 "Check your ZOTERO_LIBRARY_ID and ZOTERO_API_KEY."
             ) from e
-        
+
         # Check for connection errors
-        if any(keyword in error_msg for keyword in ["connection", "network", "timeout", "refused"]):
+        if any(
+            keyword in error_msg
+            for keyword in ["connection", "network", "timeout", "refused"]
+        ):
             raise ZoteroConnectionError(
                 "Failed to connect to Zotero API. "
                 "Check your internet connection and try again."
             ) from e
-        
+
         # Re-raise as connection error for unknown exceptions
         raise ZoteroConnectionError(
             f"Failed to fetch items from Zotero API: {e}"
         ) from e
-

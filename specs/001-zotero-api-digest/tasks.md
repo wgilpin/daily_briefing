@@ -82,20 +82,20 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T018 [P] [US2] Create unit test for format_item_markdown() with complete item data in tests/unit/test_formatter.py
-- [ ] T019 [P] [US2] Create unit test for format_item_markdown() with missing optional fields in tests/unit/test_formatter.py
-- [ ] T020 [P] [US2] Create unit test for format_item_markdown() with special markdown characters in titles in tests/unit/test_formatter.py
-- [ ] T021 [P] [US2] Create unit test for generate_digest() with multiple item types in tests/unit/test_formatter.py
-- [ ] T022 [P] [US2] Create unit test for generate_digest() with empty items list in tests/unit/test_formatter.py
-- [ ] T023 [P] [US2] Create unit test for write_digest() file creation in tests/unit/test_formatter.py
+- [X] T018 [P] [US2] Create unit test for format_item_markdown() with complete item data in tests/unit/test_formatter.py
+- [X] T019 [P] [US2] Create unit test for format_item_markdown() with missing optional fields in tests/unit/test_formatter.py
+- [X] T020 [P] [US2] Create unit test for format_item_markdown() with special markdown characters in titles in tests/unit/test_formatter.py
+- [X] T021 [P] [US2] Create unit test for generate_digest() with multiple item types in tests/unit/test_formatter.py
+- [X] T022 [P] [US2] Create unit test for generate_digest() with empty items list in tests/unit/test_formatter.py
+- [X] T023 [P] [US2] Create unit test for write_digest() file creation in tests/unit/test_formatter.py
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] Implement format_item_markdown() function in src/zotero/formatter.py to format single item with title, authors, date, venue, abstract, URL
-- [ ] T025 [US2] Implement generate_digest() function in src/zotero/formatter.py that groups items by itemType and creates markdown sections
-- [ ] T026 [US2] Implement write_digest() function in src/zotero/formatter.py that creates output directory if needed and writes markdown file
-- [ ] T027 [US2] Add markdown escaping logic in format_item_markdown() for special characters (#, *, etc.)
-- [ ] T028 [US2] Add author formatting logic in format_item_markdown() to format creators as "LastName, FirstName" comma-separated
+- [X] T024 [US2] Implement format_item_markdown() function in src/zotero/formatter.py to format single item with title, authors, date, venue, abstract, URL
+- [X] T025 [US2] Implement generate_digest() function in src/zotero/formatter.py that groups items by itemType and creates markdown sections
+- [X] T026 [US2] Implement write_digest() function in src/zotero/formatter.py that creates output directory if needed and writes markdown file
+- [X] T027 [US2] Add markdown escaping logic in format_item_markdown() for special characters (#, *, etc.)
+- [X] T028 [US2] Add author formatting logic in format_item_markdown() to format creators as "LastName, FirstName" comma-separated
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently - can fetch items and generate markdown digest file
 

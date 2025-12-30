@@ -2,8 +2,10 @@
 
 from datetime import datetime
 
+from src.zotero.types import ZoteroItem
 
-def sort_and_limit_items(items: list[dict], limit: int = 10) -> list[dict]:
+
+def sort_and_limit_items(items: list[ZoteroItem], limit: int = 10) -> list[ZoteroItem]:
     """
     Sort items by publication date and limit to N most recent.
 
@@ -30,7 +32,7 @@ def sort_and_limit_items(items: list[dict], limit: int = 10) -> list[dict]:
     # This ensures consistent ordering
     
     # Parse dates and create tuples for sorting: (has_date: bool, date: datetime or None, item)
-    def get_sort_key(item: dict) -> tuple[bool, datetime | None]:
+    def get_sort_key(item: ZoteroItem) -> tuple[bool, datetime | None]:
         """Extract sort key for an item."""
         date_str = item.get("data", {}).get("date", "").strip()
         

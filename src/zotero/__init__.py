@@ -1,9 +1,12 @@
 """Zotero API integration module."""
 
+from typing import Optional
+
+
 class AuthenticationError(Exception):
     """Raised when Zotero API authentication fails."""
 
-    def __init__(self, message: str = None):
+    def __init__(self, message: Optional[str] = None):
         if message is None:
             message = (
                 "Invalid Zotero API credentials. "
@@ -15,7 +18,7 @@ class AuthenticationError(Exception):
 class ZoteroConnectionError(Exception):
     """Raised when connection to Zotero API fails."""
 
-    def __init__(self, message: str = None):
+    def __init__(self, message: Optional[str] = None):
         if message is None:
             message = (
                 "Failed to connect to Zotero API. "
@@ -24,13 +27,13 @@ class ZoteroConnectionError(Exception):
         super().__init__(message)
 
 
-# Alias for backward compatibility with contracts
-ConnectionError = ZoteroConnectionError
-
+from src.zotero.types import Creator, ItemData, Tag, ZoteroItem
 
 __all__ = [
-    "zotero",
     "AuthenticationError",
     "ZoteroConnectionError",
-    "ConnectionError",
+    "Creator",
+    "ItemData",
+    "Tag",
+    "ZoteroItem",
 ]
