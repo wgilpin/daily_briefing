@@ -13,3 +13,4 @@ wheels/
 .env
 .env.local
 .env.*.local
+/digest.md

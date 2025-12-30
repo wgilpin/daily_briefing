@@ -1,6 +1,6 @@
 """Integration tests for Zotero API client functions."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,18 +14,23 @@ def test_fetch_recent_items_success():
     # Create mock client
     mock_client = MagicMock()
     
-    # Calculate expected cutoff timestamp
+    # Calculate expected cutoff timestamp in UTC (matching implementation)
     days = 1
-    cutoff = datetime.now() - timedelta(days=days)
-    cutoff_iso = cutoff.isoformat()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     
-    # Mock items response
+    # Create items with dateAdded in the correct format (RFC 3339 with Z)
+    now_utc = datetime.now(timezone.utc)
+    item1_date = (now_utc - timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    item2_date = (now_utc - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    old_item_date = (cutoff - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    # Mock items response - include items within and outside the date range
     mock_items = [
         {
             "key": "item1",
             "data": {
                 "title": "Test Item 1",
-                "dateAdded": (datetime.now() - timedelta(hours=12)).isoformat(),
+                "dateAdded": item1_date,  # Within range
                 "itemType": "journalArticle",
             }
         },
@@ -33,34 +38,42 @@ def test_fetch_recent_items_success():
             "key": "item2",
             "data": {
                 "title": "Test Item 2",
-                "dateAdded": (datetime.now() - timedelta(hours=6)).isoformat(),
+                "dateAdded": item2_date,  # Within range
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item3",
+            "data": {
+                "title": "Old Item",
+                "dateAdded": old_item_date,  # Outside range (too old)
                 "itemType": "journalArticle",
             }
         },
     ]
     
+    # Mock items() and everything() - everything() wraps items() and returns all items
     mock_client.items.return_value = mock_items
+    mock_client.everything.return_value = mock_items  # everything() returns the same items
     
     # Call function
     result = fetch_recent_items(mock_client, days)
     
-    # Verify client.items was called with correct since parameter
+    # Verify client.items was called once, sorted by dateAdded
     mock_client.items.assert_called_once()
     call_args = mock_client.items.call_args
-    assert "since" in call_args.kwargs
-    since_value = call_args.kwargs["since"]
-    # Since value should be close to our cutoff (within a few seconds)
-    # Handle timezone-aware and naive datetime comparison
-    since_dt = datetime.fromisoformat(since_value.replace("Z", "+00:00"))
-    if since_dt.tzinfo is not None:
-        # Convert to naive for comparison
-        since_dt = since_dt.replace(tzinfo=None)
-    assert abs((since_dt - cutoff).total_seconds()) < 5
+    assert call_args.kwargs["sort"] == "dateAdded"  # Sort by dateAdded to get recent additions
+    assert call_args.kwargs["direction"] == "desc"
     
-    # Verify result
-    assert len(result) == 2
+    # Verify everything() was called with the items() result
+    mock_client.everything.assert_called_once()
+    
+    # Verify result - should only include items within the date range
+    assert len(result) == 2, "Should filter out old items"
     assert result[0]["key"] == "item1"
     assert result[1]["key"] == "item2"
+    # Verify item3 (old item) is not in results
+    assert "item3" not in [item["key"] for item in result]
 
 
 def test_fetch_recent_items_authentication_error():
@@ -96,9 +109,12 @@ def test_fetch_recent_items_empty_result():
     """Test fetch_recent_items() handles empty results."""
     mock_client = MagicMock()
     mock_client.items.return_value = []
-    
+
     result = fetch_recent_items(mock_client, 1)
-    
+
     assert result == []
+    # Should call once, sorted by dateAdded
     mock_client.items.assert_called_once()
+    call_args = mock_client.items.call_args
+    assert call_args.kwargs["sort"] == "dateAdded"
 

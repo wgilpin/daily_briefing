@@ -1,7 +1,7 @@
 """Zotero API client wrapper."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from pyzotero import zotero
 
@@ -68,16 +68,39 @@ def fetch_recent_items(client: zotero.Zotero, days: int) -> list[ZoteroItem]:
     if days <= 0:
         raise ValueError("days must be a positive integer")
 
-    # Calculate cutoff timestamp
-    cutoff = datetime.now() - timedelta(days=days)
-    cutoff_iso = cutoff.isoformat()
+    # Calculate cutoff timestamp in UTC
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     try:
         logger.info("Fetching items added since %s (last %d day(s))", cutoff_iso, days)
-        # Fetch items added since cutoff
-        items = client.items(since=cutoff_iso)
-        logger.info("Fetched %d item(s) from Zotero API", len(items))
-        return items
+        # Note: Zotero API's 'since' parameter expects a version number, not a timestamp
+        # Strategy: Fetch ALL items sorted by dateAdded, then filter to only those added in time window
+        # Use everything() to get all items (handles pagination automatically)
+        all_items = client.everything(client.items(sort="dateAdded", direction="desc"))
+        
+        # Filter items by dateAdded (client-side filtering) - only items added in time window
+        filtered_items = []
+        for item in all_items:
+            date_added_str = item.get("data", {}).get("dateAdded", "")
+            if date_added_str:
+                try:
+                    # Parse dateAdded (format: "2010-01-04T14:50:40Z")
+                    date_added = datetime.fromisoformat(date_added_str.replace("Z", "+00:00"))
+                    if date_added >= cutoff:
+                        filtered_items.append(item)
+                    else:
+                        # Since items are sorted by dateAdded descending, once we hit items older than cutoff,
+                        # we can stop (all remaining items will be older)
+                        break
+                except (ValueError, TypeError):
+                    # Skip items with invalid dateAdded
+                    continue
+        
+        logger.info("Fetched %d item(s) from Zotero API, %d item(s) added in last %d day(s)", len(all_items), len(filtered_items), days)
+        
+        # Return items (will be sorted by publication date in sort_and_limit_items)
+        return filtered_items
     except Exception as e:
         error_msg = str(e).lower()
 
