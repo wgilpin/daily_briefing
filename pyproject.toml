@@ -14,3 +14,6 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
 ]
+
+[project.scripts]
+zotero-digest = "src.cli.main:main"

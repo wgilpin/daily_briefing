@@ -111,18 +111,18 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T029 [P] [US3] Create unit test for CLI argument parsing with --output flag in tests/unit/test_cli.py
-- [ ] T030 [P] [US3] Create unit test for CLI argument parsing with --days flag in tests/unit/test_cli.py
-- [ ] T031 [P] [US3] Create unit test for CLI argument parsing with --help flag in tests/unit/test_cli.py
-- [ ] T032 [P] [US3] Create unit test for CLI argument parsing with default values in tests/unit/test_cli.py
+- [X] T029 [P] [US3] Create unit test for CLI argument parsing with --output flag in tests/unit/test_cli.py
+- [X] T030 [P] [US3] Create unit test for CLI argument parsing with --days flag in tests/unit/test_cli.py
+- [X] T031 [P] [US3] Create unit test for CLI argument parsing with --help flag in tests/unit/test_cli.py
+- [X] T032 [P] [US3] Create unit test for CLI argument parsing with default values in tests/unit/test_cli.py
 
 ### Implementation for User Story 3
 
-- [ ] T033 [US3] Implement argparse setup in src/cli/main.py with --output, --days, --help arguments
-- [ ] T034 [US3] Integrate CLI argument parsing with load_configuration() in src/cli/main.py to merge CLI args with env vars
-- [ ] T035 [US3] Add --help text with descriptions for all options in src/cli/main.py
-- [ ] T036 [US3] Add main() entry point function in src/cli/main.py that orchestrates fetch → sort → format → write workflow
-- [ ] T037 [US3] Add __main__.py in src/cli/ or configure pyproject.toml entry point for running as module
+- [X] T033 [US3] Implement argparse setup in src/cli/main.py with --output, --days, --help arguments
+- [X] T034 [US3] Integrate CLI argument parsing with load_configuration() in src/cli/main.py to merge CLI args with env vars
+- [X] T035 [US3] Add --help text with descriptions for all options in src/cli/main.py
+- [X] T036 [US3] Add main() entry point function in src/cli/main.py that orchestrates fetch → sort → format → write workflow
+- [X] T037 [US3] Add __main__.py in src/cli/ or configure pyproject.toml entry point for running as module
 
 **Checkpoint**: At this point, User Stories 1, 2, AND 3 should all work independently - full CLI application with configurable options
 
