@@ -138,20 +138,20 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T038 [P] [US4] Create unit test for filter_by_keywords() with include keywords in tests/unit/test_filters.py
-- [ ] T039 [P] [US4] Create unit test for filter_by_keywords() with exclude keywords in tests/unit/test_filters.py
-- [ ] T040 [P] [US4] Create unit test for filter_by_keywords() with both include and exclude (exclusion takes precedence) in tests/unit/test_filters.py
-- [ ] T041 [P] [US4] Create unit test for filter_by_keywords() with empty filters (no filtering) in tests/unit/test_filters.py
-- [ ] T042 [P] [US4] Create unit test for filter_by_keywords() case-insensitive matching in tests/unit/test_filters.py
-- [ ] T043 [P] [US4] Create unit test for filter_by_keywords() searching in title, abstract, and tags in tests/unit/test_filters.py
+- [X] T038 [P] [US4] Create unit test for filter_by_keywords() with include keywords in tests/unit/test_filters.py
+- [X] T039 [P] [US4] Create unit test for filter_by_keywords() with exclude keywords in tests/unit/test_filters.py
+- [X] T040 [P] [US4] Create unit test for filter_by_keywords() with both include and exclude (exclusion takes precedence) in tests/unit/test_filters.py
+- [X] T041 [P] [US4] Create unit test for filter_by_keywords() with empty filters (no filtering) in tests/unit/test_filters.py
+- [X] T042 [P] [US4] Create unit test for filter_by_keywords() case-insensitive matching in tests/unit/test_filters.py
+- [X] T043 [P] [US4] Create unit test for filter_by_keywords() searching in title, abstract, and tags in tests/unit/test_filters.py
 
 ### Implementation for User Story 4
 
-- [ ] T044 [US4] Implement filter_by_keywords() function in src/zotero/filters.py with case-insensitive substring matching
-- [ ] T045 [US4] Add keyword search logic in filter_by_keywords() to search in title, abstractNote, and tag names
-- [ ] T046 [US4] Add exclusion-first logic in filter_by_keywords() so exclusions take precedence over inclusions
-- [ ] T047 [US4] Add --include and --exclude CLI arguments in src/cli/main.py for keyword filtering
-- [ ] T048 [US4] Integrate filter_by_keywords() into main workflow in src/cli/main.py (after fetch, before sort)
+- [X] T044 [US4] Implement filter_by_keywords() function in src/zotero/filters.py with case-insensitive substring matching
+- [X] T045 [US4] Add keyword search logic in filter_by_keywords() to search in title, abstractNote, and tag names
+- [X] T046 [US4] Add exclusion-first logic in filter_by_keywords() so exclusions take precedence over inclusions
+- [X] T047 [US4] Add --include and --exclude CLI arguments in src/cli/main.py for keyword filtering
+- [X] T048 [US4] Integrate filter_by_keywords() into main workflow in src/cli/main.py (after fetch, before sort)
 
 **Checkpoint**: All user stories should now be independently functional - complete feature with filtering capabilities
 

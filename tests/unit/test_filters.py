@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.zotero.filters import sort_and_limit_items
+from src.zotero.filters import filter_by_keywords, sort_and_limit_items
 
 
 def test_sort_and_limit_items_with_more_than_10_items():
@@ -141,4 +141,214 @@ def test_sort_and_limit_items_with_custom_limit():
     # Should be sorted by date descending (newest first)
     dates = [item["data"]["date"] for item in result]
     assert dates == sorted(dates, reverse=True)
+
+
+def test_filter_by_keywords_with_include_keywords():
+    """Test filter_by_keywords() with include keywords."""
+    items = [
+        {
+            "key": "item1",
+            "data": {
+                "title": "Machine Learning in Python",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item2",
+            "data": {
+                "title": "Introduction to Statistics",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item3",
+            "data": {
+                "title": "Deep Learning Applications",
+                "itemType": "journalArticle",
+            }
+        },
+    ]
+    
+    result = filter_by_keywords(items, include=["machine learning", "deep learning"], exclude=[])
+    
+    # Should return only items matching include keywords
+    assert len(result) == 2
+    assert result[0]["key"] == "item1"  # "Machine Learning"
+    assert result[1]["key"] == "item3"  # "Deep Learning"
+
+
+def test_filter_by_keywords_with_exclude_keywords():
+    """Test filter_by_keywords() with exclude keywords."""
+    items = [
+        {
+            "key": "item1",
+            "data": {
+                "title": "A Review of Machine Learning",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item2",
+            "data": {
+                "title": "Introduction to Statistics",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item3",
+            "data": {
+                "title": "Survey of Deep Learning",
+                "itemType": "journalArticle",
+            }
+        },
+    ]
+    
+    result = filter_by_keywords(items, include=[], exclude=["review", "survey"])
+    
+    # Should exclude items with "review" or "survey"
+    assert len(result) == 1
+    assert result[0]["key"] == "item2"
+
+
+def test_filter_by_keywords_with_both_include_and_exclude():
+    """Test filter_by_keywords() with both include and exclude (exclusion takes precedence)."""
+    items = [
+        {
+            "key": "item1",
+            "data": {
+                "title": "A Review of Machine Learning",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item2",
+            "data": {
+                "title": "Machine Learning Applications",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item3",
+            "data": {
+                "title": "Deep Learning Survey",
+                "itemType": "journalArticle",
+            }
+        },
+    ]
+    
+    result = filter_by_keywords(
+        items,
+        include=["machine learning", "deep learning"],
+        exclude=["review", "survey"]
+    )
+    
+    # Should include ML/DL items but exclude those with review/survey
+    # item1 matches include but has "review" - should be excluded
+    # item2 matches include and no exclude - should be included
+    # item3 matches include but has "survey" - should be excluded
+    assert len(result) == 1
+    assert result[0]["key"] == "item2"
+
+
+def test_filter_by_keywords_with_empty_filters():
+    """Test filter_by_keywords() with empty filters (no filtering)."""
+    items = [
+        {
+            "key": "item1",
+            "data": {
+                "title": "Item 1",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item2",
+            "data": {
+                "title": "Item 2",
+                "itemType": "journalArticle",
+            }
+        },
+    ]
+    
+    result = filter_by_keywords(items, include=[], exclude=[])
+    
+    # Should return all items unchanged
+    assert len(result) == 2
+    assert result == items
+
+
+def test_filter_by_keywords_case_insensitive_matching():
+    """Test filter_by_keywords() case-insensitive matching."""
+    items = [
+        {
+            "key": "item1",
+            "data": {
+                "title": "Machine Learning Basics",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item2",
+            "data": {
+                "title": "MACHINE LEARNING Advanced",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item3",
+            "data": {
+                "title": "machine learning applications",
+                "itemType": "journalArticle",
+            }
+        },
+    ]
+    
+    result = filter_by_keywords(items, include=["MACHINE LEARNING"], exclude=[])
+    
+    # Should match all items regardless of case
+    assert len(result) == 3
+
+
+def test_filter_by_keywords_searching_in_title_abstract_and_tags():
+    """Test filter_by_keywords() searching in title, abstract, and tags."""
+    items = [
+        {
+            "key": "item1",
+            "data": {
+                "title": "Some Article",
+                "abstractNote": "This is about machine learning",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item2",
+            "data": {
+                "title": "Machine Learning Paper",
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item3",
+            "data": {
+                "title": "Another Article",
+                "tags": [{"tag": "machine-learning"}],
+                "itemType": "journalArticle",
+            }
+        },
+        {
+            "key": "item4",
+            "data": {
+                "title": "Unrelated Article",
+                "itemType": "journalArticle",
+            }
+        },
+    ]
+    
+    result = filter_by_keywords(items, include=["machine learning"], exclude=[])
+    
+    # Should find items with keyword in title, abstract, or tags
+    assert len(result) == 3
+    assert "item1" in [item["key"] for item in result]  # In abstract
+    assert "item2" in [item["key"] for item in result]  # In title
+    assert "item3" in [item["key"] for item in result]  # In tag
+    assert "item4" not in [item["key"] for item in result]  # No match
 

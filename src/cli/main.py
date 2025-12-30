@@ -6,7 +6,7 @@ import sys
 from src.utils.config import Configuration, load_configuration
 from src.zotero import AuthenticationError, ZoteroConnectionError
 from src.zotero.client import create_zotero_client, fetch_recent_items
-from src.zotero.filters import sort_and_limit_items
+from src.zotero.filters import filter_by_keywords, sort_and_limit_items
 from src.zotero.formatter import generate_digest, write_digest
 
 
@@ -116,11 +116,14 @@ def main() -> int:
             print(f"No items found in the last {config.days} day(s).")
             return 0
         
-        # Apply keyword filtering if specified
-        # Note: filter_by_keywords() will be implemented in Phase 6 (User Story 4)
+        # Apply keyword filtering if specified (before sorting)
         if config.include_keywords or config.exclude_keywords:
-            # TODO: Implement filtering in Phase 6
-            print("Warning: Keyword filtering not yet implemented (Phase 6)")
+            items = filter_by_keywords(
+                items,
+                include=config.include_keywords,
+                exclude=config.exclude_keywords,
+            )
+            print(f"After keyword filtering: {len(items)} item(s)")
         
         # Sort and limit to 10 most recently published
         items = sort_and_limit_items(items, limit=10)

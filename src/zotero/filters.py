@@ -1,6 +1,7 @@
 """Filtering and sorting functions for Zotero items."""
 
 from datetime import datetime
+from typing import Optional
 
 from src.zotero.types import ZoteroItem
 
@@ -69,4 +70,100 @@ def sort_and_limit_items(items: list[ZoteroItem], limit: int = 10) -> list[Zoter
     
     # Return first `limit` items
     return sorted_items[:limit]
+
+
+def filter_by_keywords(
+    items: list[ZoteroItem],
+    include: Optional[list[str]] = None,
+    exclude: Optional[list[str]] = None,
+) -> list[ZoteroItem]:
+    """
+    Filter items by keyword matching in title, abstract, and tags.
+
+    Case-insensitive substring matching. Searches in title, abstractNote, and tag names.
+    Exclusion takes precedence: items matching exclude keywords are removed first.
+    Then inclusion filter applied: items must match at least one include keyword (if provided).
+
+    Args:
+        items: List of Zotero item dictionaries
+        include: Keywords that must be present (empty/None = no filter)
+        exclude: Keywords that must be absent (empty/None = no filter)
+
+    Returns:
+        Filtered list of items. Original order preserved (filtering only, no sorting).
+
+    Behavior:
+        - Case-insensitive substring matching
+        - Searches in: title, abstractNote, and tag names
+        - Exclusion takes precedence: items matching exclude keywords are removed first
+        - Then inclusion filter applied: items must match at least one include keyword (if provided)
+        - Empty `include` list means include all (after exclusions)
+        - Empty `exclude` list means no exclusions
+    """
+    if include is None:
+        include = []
+    if exclude is None:
+        exclude = []
+
+    # Normalize keywords to lowercase for case-insensitive matching
+    include_lower = [kw.lower() for kw in include if kw]
+    exclude_lower = [kw.lower() for kw in exclude if kw]
+
+    def item_matches_keywords(item: ZoteroItem, keywords: list[str]) -> bool:
+        """Check if item matches any of the given keywords."""
+        if not keywords:
+            return False
+
+        def normalize_text(text: str) -> str:
+            """Normalize text for matching: lowercase and replace hyphens/underscores with spaces."""
+            return text.lower().replace("-", " ").replace("_", " ")
+
+        data = item.get("data", {})
+        search_texts = []
+
+        # Search in title
+        title = data.get("title", "")
+        if title:
+            search_texts.append(normalize_text(title))
+
+        # Search in abstract
+        abstract = data.get("abstractNote", "")
+        if abstract:
+            search_texts.append(normalize_text(abstract))
+
+        # Search in tags
+        tags = data.get("tags", [])
+        for tag in tags:
+            tag_name = tag.get("tag", "")
+            if tag_name:
+                search_texts.append(normalize_text(tag_name))
+
+        # Combine all searchable text
+        combined_text = " ".join(search_texts)
+
+        # Check if any keyword matches (substring search)
+        # Normalize keywords too
+        for keyword in keywords:
+            normalized_keyword = normalize_text(keyword)
+            if normalized_keyword in combined_text:
+                return True
+
+        return False
+
+    # First, apply exclusion filter (takes precedence)
+    filtered_items = items
+    if exclude_lower:
+        filtered_items = [
+            item for item in filtered_items
+            if not item_matches_keywords(item, exclude_lower)
+        ]
+
+    # Then, apply inclusion filter (if provided)
+    if include_lower:
+        filtered_items = [
+            item for item in filtered_items
+            if item_matches_keywords(item, include_lower)
+        ]
+
+    return filtered_items
 
