@@ -8,6 +8,13 @@ dependencies = [
     "pyzotero>=1.7.6",
     "python-dotenv>=1.0.0",
     "tqdm>=4.66.0",
+    "flask>=3.0.0",
+    "google-api-python-client>=2.100.0",
+    "google-auth>=2.25.0",
+    "google-auth-oauthlib>=1.2.0",
+    "google-auth-httplib2>=0.2.0",
+    "html2text>=2024.2.26",
+    "google-genai>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -17,3 +24,17 @@ dev = [
 
 [project.scripts]
 zotero-digest = "src.cli.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[tool.pytest.ini_options]
+# Filter out deprecation warnings from third-party dependencies
+filterwarnings = [
+    # Suppress httplib2 deprecation warnings (from google-auth-httplib2 dependency)
+    "ignore::DeprecationWarning:httplib2",
+    # Suppress pyparsing deprecation warnings (used by httplib2)
+    "ignore::DeprecationWarning:pyparsing",
+]

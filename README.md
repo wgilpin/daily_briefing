@@ -1,6 +1,16 @@
-# Daily Briefing - Zotero API Digest
+# Daily Briefing
+
+A collection of tools for generating personalized daily briefings from multiple sources.
+
+## Features
+
+### 1. Zotero API Digest
 
 A CLI application that generates markdown digests of recent Zotero library additions, helping you stay up-to-date with your research collection.
+
+### 2. Newsletter Aggregator (In Development)
+
+A web application that collects newsletter emails from Gmail, converts them to markdown, parses them using configurable LLM prompts, and generates a consolidated newsletter digest. All data is stored locally.
 
 ## Features
 
@@ -12,8 +22,8 @@ A CLI application that generates markdown digests of recent Zotero library addit
 ## Prerequisites
 
 - Python 3.13 or higher
-- Zotero account with library items
-- Zotero API credentials (see Setup below)
+- For Zotero Digest: Zotero account with library items and API credentials
+- For Newsletter Aggregator: Gmail account with OAuth credentials, Google Gemini API key (GEMINI_API_KEY environment variable)
 
 ## Setup
 
@@ -27,7 +37,9 @@ uv sync
 pip install -e .
 ```
 
-### 2. Get Zotero API Credentials
+### 2. Zotero Digest Setup
+
+#### Get Zotero API Credentials
 
 1. Visit https://www.zotero.org/settings/keys
 2. Note your **User ID** (shown as "Your userID for use in API calls")
@@ -35,7 +47,7 @@ pip install -e .
 4. Give it a name (e.g., "Daily Briefing")
 5. Copy the generated **API Key** (you'll only see it once)
 
-### 3. Configure Credentials
+#### Configure Credentials
 
 Create a `.env` file in the project root:
 
@@ -46,14 +58,70 @@ ZOTERO_API_KEY=your_api_key_here
 
 **Security Note**: Never commit `.env` to version control. It should already be in `.gitignore`.
 
-Alternatively, you can copy `.env.example` to `.env` and fill in your credentials:
+### 3. Newsletter Aggregator Setup
+
+#### Gmail OAuth Credentials
+
+1. Follow the [Gmail Setup Guide](docs/gmail_setup.md) to create and download OAuth credentials
+2. Place the downloaded file in `config/credentials.json`:
+   ```bash
+   # If you downloaded a file with a different name, rename it:
+   mv config/client_secret_*.json config/credentials.json
+   ```
+
+#### Google Gemini API Key
+
+The Newsletter Aggregator uses Google Gemini for LLM-based parsing and consolidation.
+
+1. Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Add it to your `.env` file:
+   ```bash
+   GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+
+#### Starting the Application
+
+Start the Flask web server:
 
 ```bash
-cp .env.example .env
-# Edit .env with your credentials
+# Using the startup script (recommended)
+./start_emails.sh
+
+# Or using uv directly
+uv run flask --app src.web.app run
+
+# Or using Python directly
+uv run python -m src.web.app
 ```
 
+The application will start on `http://127.0.0.1:5000`. Open this URL in your browser.
+
+**First-time authentication**: When you first try to collect emails, the app will open your browser for Gmail OAuth authentication. Sign in and grant permissions to allow the app to read your emails.
+
+#### Initial Configuration
+
+1. **Configure Newsletter Senders**:
+   - Navigate to the "Configuration" page in the web UI
+   - Add sender email addresses (e.g., `newsletter@example.com`)
+   - Optionally customize parsing prompts per sender
+   - Set retention limit (default: 100 records)
+
+2. **Configure Models** (if needed):
+   - Edit `config/senders.json` to change default models:
+     ```json
+     {
+       "models": {
+         "parsing": "gemini-2.5-flash",
+         "consolidation": "gemini-2.5-flash"
+       }
+     }
+     ```
+
+See `specs/002-newsletter-aggregator/` for detailed specifications.
+
 ## Usage
+
+### Zotero Digest
 
 ### Basic Usage
 
@@ -65,7 +133,7 @@ python -m src.cli.main
 
 This creates `digest.md` in the current directory.
 
-### Custom Time Range
+#### Custom Time Range
 
 Generate digest for items added in the last 7 days:
 
@@ -73,7 +141,7 @@ Generate digest for items added in the last 7 days:
 python -m src.cli.main --days 7
 ```
 
-### Custom Output Path
+#### Custom Output Path
 
 Save digest to a specific location:
 
@@ -81,7 +149,7 @@ Save digest to a specific location:
 python -m src.cli.main --output ~/Documents/zotero-digest.md
 ```
 
-### Keyword Filtering
+#### Keyword Filtering
 
 Include only items matching keywords:
 
@@ -101,7 +169,7 @@ Combine filters:
 python -m src.cli.main --include "AI" --exclude "review" --days 3
 ```
 
-### Help
+#### Help
 
 View all available options:
 
@@ -109,7 +177,41 @@ View all available options:
 python -m src.cli.main --help
 ```
 
-## Output Format
+### Newsletter Aggregator
+
+The Newsletter Aggregator provides a complete workflow for processing newsletters:
+
+1. **Collect Emails**: Retrieves newsletters from Gmail based on configured sender addresses
+2. **Convert to Markdown**: Converts email content (HTML/text) to standardized markdown format
+3. **Parse Newsletters**: Uses LLM (Gemini) to extract structured items (title, date, summary, link) from newsletters
+4. **Consolidate**: Generates a single consolidated newsletter digest from all parsed items
+
+#### Workflow
+
+1. **Configure Senders**: Add newsletter sender email addresses in the Configuration page
+2. **Collect Emails**: Click "Collect Emails" to retrieve newsletters from Gmail
+3. **Process Emails**: Click "Process Emails" to convert and parse newsletters
+4. **Consolidate**: Click "Consolidate Newsletter" to generate the final digest
+
+#### Features
+
+- **Parallel Processing**: Processes multiple newsletters concurrently for faster parsing
+- **Configurable Prompts**: Customize parsing prompts per sender for better extraction
+- **Retention Policy**: Automatically cleans up old records based on configurable limit
+- **Status Indicators**: Dashboard shows counts of processed emails, parsed items, and more
+- **Error Handling**: Graceful error handling with clear user feedback
+
+#### Troubleshooting
+
+**"Failed to create LLM client"**: Ensure `GEMINI_API_KEY` is set in your `.env` file
+
+**"No senders configured"**: Add at least one sender email address in the Configuration page
+
+**"Gmail authentication failed"**: Check that `config/credentials.json` exists and is valid. Re-authenticate if needed.
+
+**"429 RESOURCE_EXHAUSTED"**: You've hit Gemini API rate limits. The app uses `gemini-2.5-flash` by default for higher quotas. You can adjust `max_workers` in `config/senders.json` to reduce parallel requests.
+
+## Zotero Digest Output Format
 
 The generated markdown file contains:
 
@@ -144,7 +246,7 @@ Items Found: 5
 ...
 ```
 
-## Behavior
+## Zotero Digest Behavior
 
 ### Item Selection
 
@@ -159,7 +261,7 @@ Items Found: 5
 - **Exclude keywords**: Takes precedence over include filters
 - **Empty filters**: No filtering applied (all items included)
 
-## Troubleshooting
+## Zotero Digest Troubleshooting
 
 ### "Missing required environment variables"
 
@@ -209,7 +311,7 @@ The following success criteria are validated as part of the implementation:
 
 See the [Success Criteria Validation Checklist](#success-criteria-validation-checklist) below for detailed validation steps.
 
-## Success Criteria Validation Checklist
+## Zotero Digest Success Criteria Validation Checklist
 
 Use this checklist to verify all success criteria are met:
 
@@ -257,21 +359,29 @@ uv run pytest --cov=src --cov-report=html
 
 ```
 src/
-├── cli/           # Command-line interface
+├── cli/           # Command-line interface (Zotero digest)
+├── newsletter/    # Newsletter aggregator core logic (in development)
+├── web/           # Flask web application (in development)
 ├── zotero/        # Zotero API integration
 │   ├── client.py  # API client wrapper
 │   ├── filters.py # Filtering and sorting logic
 │   ├── formatter.py # Markdown generation
 │   └── types.py   # Type definitions
-└── utils/         # Configuration management
+└── utils/         # Shared utilities and configuration
+
+data/              # Local data storage (newsletter aggregator)
+config/            # Configuration files (OAuth credentials, etc.)
+tests/
+├── unit/          # Unit tests
+└── integration/   # Integration tests
 ```
 
 ## Next Steps
 
+- Complete Newsletter Aggregator implementation (see `specs/002-newsletter-aggregator/`)
 - Integrate into daily workflow (e.g., cron job, scheduled task)
 - Customize markdown formatting (edit `src/zotero/formatter.py`)
 - Add additional filters or sorting options
-- Extend to other sources (Gmail, Twitter) per PRD roadmap
 
 ## License
 

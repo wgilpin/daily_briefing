@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration - Newsletter Aggregator{% endblock %}
+
+{% block content %}
+<h2>Configuration</h2>
+
+<div class="config-section">
+    <h3>Add/Edit Sender</h3>
+    <form hx-post="/config/senders" hx-target="#sender-status" hx-swap="innerHTML" class="config-form">
+        <div class="form-group">
+            <label for="email">Email Address:</label>
+            <input type="email" id="email" name="email" required placeholder="newsletter@example.com">
+        </div>
+        <div class="form-group">
+            <label for="parsing_prompt">Parsing Prompt:</label>
+            <textarea id="parsing_prompt" name="parsing_prompt" rows="4" placeholder="{{ default_parsing_prompt }}">{{ default_parsing_prompt }}</textarea>
+            <small class="form-hint">Leave empty to use the default prompt above.</small>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="enabled" value="true" checked>
+                Enabled (collect emails from this sender)
+            </label>
+        </div>
+        <input type="hidden" name="action" value="add">
+        <button type="submit" class="btn">Add/Update Sender</button>
+    </form>
+    <div id="sender-status"></div>
+</div>
+
+<div class="config-section">
+    <h3>Configured Senders</h3>
+    <div id="senders-list">
+        {% if senders %}
+            <ul class="senders-list">
+                {% for email, config in senders.items() %}
+                <li class="sender-item">
+                    <div class="sender-header">
+                        <strong>{{ email }}</strong>
+                        <span class="status-badge {% if config.get('enabled', True) %}enabled{% else %}disabled{% endif %}">
+                            {% if config.get('enabled', True) %}Enabled{% else %}Disabled{% endif %}
+                        </span>
+                        <button 
+                            hx-delete="/config/senders/{{ email }}" 
+                            hx-target="#sender-status" 
+                            hx-swap="innerHTML"
+                            class="btn-small btn-danger"
+                            onclick="return confirm('Delete {{ email }}?')"
+                        >Delete</button>
+                    </div>
+                    <p class="prompt-preview">{{ config.get('parsing_prompt', 'No prompt')[:100] }}{% if config.get('parsing_prompt', '')|length > 100 %}...{% endif %}</p>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No senders configured yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="config-section">
+    <h3>Consolidation Prompt</h3>
+    <form hx-post="/config/consolidation" hx-target="#consolidation-status" hx-swap="innerHTML" class="config-form">
+        <div class="form-group">
+            <label for="consolidation_prompt">Consolidation Prompt:</label>
+            <textarea id="consolidation_prompt" name="consolidation_prompt" rows="6" placeholder="{{ default_consolidation_prompt }}">{% if consolidation_prompt %}{{ consolidation_prompt }}{% else %}{{ default_consolidation_prompt }}{% endif %}</textarea>
+            <small class="form-hint">Leave empty to use the default prompt above.</small>
+        </div>
+        <button type="submit" class="btn">Update Consolidation Prompt</button>
+    </form>
+    <div id="consolidation-status"></div>
+</div>
+
+<div class="config-section">
+    <h3>Retention Limit</h3>
+    <form hx-post="/config/retention" hx-target="#retention-status" hx-swap="innerHTML" class="config-form">
+        <div class="form-group">
+            <label for="retention_limit">Retention Limit:</label>
+            <input type="number" id="retention_limit" name="retention_limit" min="1" value="{{ retention_limit }}" required>
+            <small class="form-hint">Maximum number of processed email records to keep. Oldest records will be automatically deleted when this limit is exceeded.</small>
+        </div>
+        <button type="submit" class="btn">Update Retention Limit</button>
+    </form>
+    <div id="retention-status"></div>
+</div>
+
+<div class="back-link">
+    <a href="{{ url_for('newsletter.index') }}" class="btn">Back to Dashboard</a>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.config-section {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #3498db;
+}
+
+.config-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.config-form {
+    margin-bottom: 15px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.form-group input[type="email"],
+.form-group input[type="text"],
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.95em;
+    font-family: inherit;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.form-group input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.form-hint {
+    display: block;
+    margin-top: 5px;
+    color: #666;
+    font-size: 0.85em;
+    font-style: italic;
+}
+
+.senders-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sender-item {
+    background-color: white;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    border: 1px solid #e0e0e0;
+}
+
+.sender-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.sender-header strong {
+    flex: 1;
+    min-width: 200px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+.status-badge.enabled {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-badge.disabled {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.btn-small {
+    padding: 5px 10px;
+    font-size: 0.85em;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+}
+
+.prompt-preview {
+    color: #666;
+    font-style: italic;
+    margin-top: 5px;
+    font-size: 0.9em;
+}
+
+.info-text {
+    color: #666;
+    font-size: 0.9em;
+    font-style: italic;
+}
+
+.back-link {
+    margin-top: 30px;
+}
+
+.status {
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.status.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+</style>
+{% endblock %}

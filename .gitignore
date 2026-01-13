@@ -8,9 +8,16 @@ wheels/
 
 # Virtual environments
 .venv
+venv/
 
 # Environment variables
 .env
 .env.local
 .env.*.local
 /digest.md
+
+# Newsletter aggregator data and config
+data/
+config/credentials.json
+config/tokens.json
+*.db

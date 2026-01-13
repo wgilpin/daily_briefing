@@ -86,3 +86,146 @@ def load_configuration() -> Configuration:
         exclude_keywords=[],
     )
 
+
+# Newsletter Aggregator Configuration Functions
+# These functions are separate from the Zotero Configuration class above
+
+
+def load_config(config_path: str) -> dict:
+    """
+    Load newsletter configuration from JSON file.
+
+    Loads configuration from config/senders.json with defaults applied if keys are missing.
+    If the file doesn't exist, raises ValueError (models are required, no defaults).
+
+    Args:
+        config_path: Path to config/senders.json file
+
+    Returns:
+        dict: Configuration dictionary with keys:
+            - models: dict with "parsing" and "consolidation" model names (REQUIRED)
+            - senders: dict mapping sender email to configuration
+            - consolidation_prompt: str prompt for consolidation
+            - retention_limit: int number of records to keep (default: 100)
+            - default_parsing_prompt: str default prompt for parsing newsletters
+
+    Raises:
+        ValueError: If file doesn't exist or models configuration is missing/invalid
+        json.JSONDecodeError: If file exists but contains invalid JSON
+    """
+    import json
+    from pathlib import Path
+
+    config_path_obj = Path(config_path)
+
+    # If file doesn't exist, raise error (no defaults for models)
+    if not config_path_obj.exists():
+        raise ValueError(
+            f"Configuration file not found: {config_path}\n"
+            "Please create config/senders.json with:\n"
+            '{\n'
+            '  "models": {\n'
+            '    "parsing": "gemini-2.5-flash",\n'
+            '    "consolidation": "gemini-2.5-flash"\n'
+            '  },\n'
+            '  "senders": {},\n'
+            '  "consolidation_prompt": "",\n'
+            '  "retention_limit": 100\n'
+            '}'
+        )
+
+    # Load and parse JSON
+    with open(config_path_obj, "r", encoding="utf-8") as f:
+        config_data = json.load(f)
+
+    # Apply defaults for missing keys (but NOT for models - that's required)
+    defaults = {
+        "senders": {},
+        "consolidation_prompt": "",
+        "retention_limit": 100,
+        "max_workers": 5,
+        "default_parsing_prompt": (
+            "Extract articles from this newsletter. "
+            "Return a JSON array with items containing: date, title, summary, link (optional)."
+        ),
+        "default_consolidation_prompt": (
+            "Create a consolidated newsletter digest from these items. "
+            "Group similar topics together and create a well-formatted markdown document. "
+            "Organize by topic and include all relevant information. "
+            "Use clear headings and sections to make it easy to read."
+        ),
+    }
+
+    result = {**defaults, **config_data}
+    
+    # Validate required models configuration
+    if "models" not in result:
+        raise ValueError(
+            "Missing 'models' configuration in config/senders.json.\n"
+            "Please add:\n"
+            '  "models": {\n'
+            '    "parsing": "gemini-2.5-flash",\n'
+            '    "consolidation": "gemini-2.5-flash"\n'
+            "  }"
+        )
+    
+    if not isinstance(result["models"], dict):
+        raise ValueError("'models' configuration must be a dictionary")
+    
+    if "parsing" not in result["models"]:
+        raise ValueError(
+            "Missing 'parsing' model in config/senders.json.\n"
+            "Please add: \"parsing\": \"gemini-2.5-flash\" to the models section"
+        )
+    
+    if "consolidation" not in result["models"]:
+        raise ValueError(
+            "Missing 'consolidation' model in config/senders.json.\n"
+            "Please add: \"consolidation\": \"gemini-2.5-flash\" to the models section"
+        )
+
+    # Ensure senders is a dict
+    if not isinstance(result.get("senders"), dict):
+        result["senders"] = {}
+
+    # Ensure retention_limit is an integer
+    if not isinstance(result.get("retention_limit"), int):
+        result["retention_limit"] = 100
+
+    # Ensure max_workers is an integer
+    if not isinstance(result.get("max_workers"), int):
+        result["max_workers"] = 5
+    elif result.get("max_workers") < 1:
+        result["max_workers"] = 1  # At least 1 worker
+    elif result.get("max_workers") > 20:
+        result["max_workers"] = 20  # Cap at 20 to avoid overwhelming the API
+
+    return result
+
+
+def save_config(config_path: str, config: dict) -> None:
+    """
+    Save newsletter configuration to JSON file.
+
+    Saves configuration to config/senders.json with pretty-printed JSON formatting.
+    Creates directory structure if needed.
+
+    Args:
+        config_path: Path to config/senders.json file
+        config: Configuration dictionary to save
+
+    Raises:
+        OSError: If file cannot be written
+        TypeError: If config cannot be serialized to JSON
+    """
+    import json
+    from pathlib import Path
+
+    config_path_obj = Path(config_path)
+
+    # Create parent directory if it doesn't exist
+    config_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+    # Write JSON with pretty formatting
+    with open(config_path_obj, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)

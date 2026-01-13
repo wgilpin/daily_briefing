@@ -1,0 +1,2 @@
+"""Newsletter aggregator module."""
+
