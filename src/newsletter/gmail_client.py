@@ -4,7 +4,6 @@ import base64
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
@@ -58,7 +57,7 @@ def authenticate_gmail(
     if tokens_path_obj.exists():
         try:
             creds = Credentials.from_authorized_user_file(str(tokens_path_obj), SCOPES)
-        except (ValueError, json.JSONDecodeError) as e:
+        except (ValueError, json.JSONDecodeError):
             # Invalid token file, will need to re-authenticate
             creds = None
 

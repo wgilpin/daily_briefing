@@ -1,0 +1,75 @@
+<div id="newsletter-config" class="source-config-form">
+    <h4>Newsletter Configuration</h4>
+    {% if newsletter_config.configured %}
+    <div class="config-status configured">
+        <span class="status-icon">&#10003;</span>
+        <span>Configured</span>
+    </div>
+    {% else %}
+    <div class="config-status not-configured">
+        <span class="status-icon">&#10007;</span>
+        <span>No senders configured</span>
+    </div>
+    {% endif %}
+
+    <p class="section-description">
+        Configure which newsletter senders to process and how to parse their content.
+        <a href="{{ url_for('newsletter.config') }}">Full Newsletter Configuration</a>
+    </p>
+
+    <h5>Configured Senders</h5>
+    {% if newsletter_config.senders %}
+    <ul class="sender-list">
+        {% for email, config in newsletter_config.senders.items() %}
+        <li class="sender-item">
+            <span class="sender-email">{{ email }}</span>
+            <span class="sender-status {% if config.get('enabled', True) %}enabled{% else %}disabled{% endif %}">
+                {% if config.get('enabled', True) %}Enabled{% else %}Disabled{% endif %}
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="no-senders">No newsletter senders configured yet.</p>
+    {% endif %}
+
+    <div class="quick-add-sender">
+        <h5>Quick Add Sender</h5>
+        <form hx-post="{{ url_for('main.api_settings_newsletter_sender') }}"
+              hx-target="#newsletter-status"
+              hx-swap="innerHTML"
+              class="config-form inline-form">
+            <div class="form-group">
+                <label for="sender_email">Email Address:</label>
+                <input type="email"
+                       id="sender_email"
+                       name="email"
+                       required
+                       placeholder="newsletter@example.com">
+            </div>
+            <button type="submit" class="btn">Add Sender</button>
+        </form>
+    </div>
+
+    <div class="newsletter-settings">
+        <h5>General Settings</h5>
+        <form hx-post="{{ url_for('main.api_settings_newsletter') }}"
+              hx-target="#newsletter-status"
+              hx-swap="innerHTML"
+              class="config-form">
+            <div class="form-group">
+                <label for="max_emails">Max Emails per Refresh:</label>
+                <input type="number"
+                       id="max_emails"
+                       name="max_emails_per_refresh"
+                       min="1"
+                       max="100"
+                       value="{{ newsletter_config.max_emails or 20 }}"
+                       placeholder="20">
+                <small class="form-hint">Maximum number of emails to process during refresh.</small>
+            </div>
+            <button type="submit" class="btn">Update Newsletter Settings</button>
+        </form>
+    </div>
+    <div id="newsletter-status"></div>
+</div>

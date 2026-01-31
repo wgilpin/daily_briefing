@@ -1,7 +1,6 @@
 """Markdown conversion functions for newsletter aggregator."""
 
 import html2text
-from typing import Optional
 
 
 def convert_to_markdown(email: dict) -> str:

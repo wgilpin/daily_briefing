@@ -1,6 +1,100 @@
-"""Configuration management for Zotero API Digest."""
+"""Configuration management for the unified feed application.
 
+Provides environment variable loading and validation for:
+- Zotero API credentials
+- Newsletter/Gmail configuration
+- PostgreSQL database connection
+- Encryption keys for OAuth token storage
+"""
+
+import os
 from dataclasses import dataclass
+from typing import Optional
+
+from dotenv import load_dotenv
+
+
+# =============================================================================
+# Unified Feed App Environment Configuration
+# =============================================================================
+
+
+def get_database_url() -> str:
+    """Get PostgreSQL database URL from environment.
+
+    Returns:
+        str: DATABASE_URL connection string
+
+    Raises:
+        ValueError: If DATABASE_URL is not set
+    """
+    load_dotenv()
+    url = os.getenv("DATABASE_URL", "").strip()
+    if not url:
+        raise ValueError(
+            "Missing required environment variable: DATABASE_URL\n"
+            "Please set DATABASE_URL to your PostgreSQL connection string.\n"
+            "Example: postgresql://user:password@localhost:5432/daily_briefing"
+        )
+    return url
+
+
+def get_encryption_key() -> str:
+    """Get encryption key for OAuth token storage.
+
+    Returns:
+        str: ENCRYPTION_KEY for Fernet encryption (32 bytes, base64-encoded)
+
+    Raises:
+        ValueError: If ENCRYPTION_KEY is not set
+    """
+    load_dotenv()
+    key = os.getenv("ENCRYPTION_KEY", "").strip()
+    if not key:
+        raise ValueError(
+            "Missing required environment variable: ENCRYPTION_KEY\n"
+            "Generate a key with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+        )
+    return key
+
+
+def get_gemini_api_key() -> str:
+    """Get Gemini API key from environment.
+
+    Returns:
+        str: GEMINI_API_KEY
+
+    Raises:
+        ValueError: If GEMINI_API_KEY is not set
+    """
+    load_dotenv()
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not key:
+        raise ValueError(
+            "Missing required environment variable: GEMINI_API_KEY\n"
+            "Get your API key from: https://aistudio.google.com/apikey"
+        )
+    return key
+
+
+def get_optional_env(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Get an optional environment variable.
+
+    Args:
+        key: Environment variable name
+        default: Default value if not set
+
+    Returns:
+        str or None: The environment variable value or default
+    """
+    load_dotenv()
+    value = os.getenv(key, "").strip()
+    return value if value else default
+
+
+# =============================================================================
+# Legacy Zotero Configuration (preserved for backwards compatibility)
+# =============================================================================
 
 
 @dataclass

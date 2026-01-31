@@ -343,6 +343,69 @@ Use this checklist to verify all success criteria are met:
 - [ ] Test with network disconnected
 - [ ] Verify all error messages are clear and actionable
 
+## Docker Deployment
+
+### Local Development with Docker Compose
+
+Run the unified feed app with PostgreSQL locally:
+
+```bash
+# Copy environment file and fill in values
+cp .env.example .env
+# Edit .env with your Zotero and Gemini API keys
+
+# Start services
+docker compose up -d
+
+# View logs
+docker compose logs -f app
+
+# Stop services
+docker compose down
+```
+
+The app will be available at `http://localhost:5000`.
+
+### Coolify Deployment
+
+Deploy to Coolify using the included Dockerfile:
+
+1. **Create a new service** in Coolify:
+   - Select "Docker" as the deployment method
+   - Point to your repository
+
+2. **Configure environment variables** in Coolify's dashboard:
+
+   ```text
+   DATABASE_URL=postgresql://user:pass@postgres:5432/daily_briefing
+   ZOTERO_LIBRARY_ID=your_library_id
+   ZOTERO_API_KEY=your_api_key
+   GEMINI_API_KEY=your_gemini_key
+   ENCRYPTION_KEY=your_32_byte_hex_key
+   GOOGLE_CLIENT_ID=your_client_id (optional, for Gmail OAuth)
+   GOOGLE_CLIENT_SECRET=your_secret (optional, for Gmail OAuth)
+   ```
+
+3. **Add PostgreSQL service**:
+   - Create a new PostgreSQL database in Coolify
+   - Link it to your application
+   - The `DATABASE_URL` will be provided automatically
+
+4. **Configure health check** (optional):
+   - Coolify will use the Dockerfile's health check automatically
+   - Endpoint: `GET /api/health`
+
+5. **Deploy**:
+   - Coolify will build and deploy the container
+   - Migrations run automatically on startup
+
+### Docker Image Details
+
+The Dockerfile uses a multi-stage build:
+
+- **Builder stage**: Python 3.13-slim with uv package manager
+- **Production stage**: Non-root user, health checks, minimal image size
+
 ## Development
 
 ### Running Tests

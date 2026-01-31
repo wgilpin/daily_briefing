@@ -1,0 +1,109 @@
+<article class="feed-item" data-source="{{ item.source_type }}">
+    <div class="feed-item-header">
+        <span class="source-badge {{ item.source_type }}">{{ item.source_type|capitalize }}</span>
+        <time datetime="{{ item.date.isoformat() }}">{{ item.date.strftime('%Y-%m-%d') }}</time>
+    </div>
+    <h3 class="feed-item-title">
+        {% if item.link %}
+        <a href="{{ item.link }}" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>
+        {% else %}
+        {{ item.title }}
+        {% endif %}
+    </h3>
+    {% if item.summary %}
+    <p class="feed-item-summary">{{ item.summary|truncate(300) }}</p>
+    {% endif %}
+    {% if item.metadata %}
+    <div class="feed-item-metadata">
+        {% if item.metadata.authors %}
+        <span class="metadata-item"><strong>Authors:</strong> {{ item.metadata.authors }}</span>
+        {% endif %}
+        {% if item.metadata.sender %}
+        <span class="metadata-item"><strong>From:</strong> {{ item.metadata.sender }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</article>
+
+<style>
+.feed-item {
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px 20px;
+    transition: box-shadow 0.2s;
+}
+
+.feed-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.feed-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.source-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.source-badge.zotero {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.source-badge.newsletter {
+    background-color: #27ae60;
+    color: white;
+}
+
+.feed-item-header time {
+    color: #7f8c8d;
+    font-size: 0.85em;
+}
+
+.feed-item-title {
+    margin: 0 0 10px 0;
+    font-size: 1.1em;
+    line-height: 1.4;
+}
+
+.feed-item-title a {
+    color: #2c3e50;
+    text-decoration: none;
+}
+
+.feed-item-title a:hover {
+    color: #3498db;
+    text-decoration: underline;
+}
+
+.feed-item-summary {
+    color: #555;
+    font-size: 0.95em;
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+.feed-item-metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    font-size: 0.85em;
+    color: #666;
+    padding-top: 10px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.metadata-item strong {
+    color: #444;
+}
+</style>

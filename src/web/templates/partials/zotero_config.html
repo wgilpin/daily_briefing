@@ -1,0 +1,69 @@
+<div id="zotero-config" class="source-config-form">
+    <h4>Zotero Configuration</h4>
+    {% if zotero_config.configured %}
+    <div class="config-status configured">
+        <span class="status-icon">&#10003;</span>
+        <span>Configured via environment variables</span>
+    </div>
+    <div class="config-details">
+        <p><strong>Library ID:</strong> {{ zotero_config.library_id }}</p>
+        <p><strong>Days Lookback:</strong> {{ zotero_config.days_lookback or 7 }}</p>
+    </div>
+    {% else %}
+    <div class="config-status not-configured">
+        <span class="status-icon">&#10007;</span>
+        <span>Not configured</span>
+    </div>
+    <p class="config-help">
+        Set the following environment variables to enable Zotero integration:
+    </p>
+    <ul class="env-list">
+        <li><code>ZOTERO_LIBRARY_ID</code> - Your Zotero user ID</li>
+        <li><code>ZOTERO_API_KEY</code> - Your Zotero API key</li>
+    </ul>
+    <p>
+        <a href="https://www.zotero.org/settings/keys" target="_blank" rel="noopener noreferrer">
+            Get your Zotero API credentials
+        </a>
+    </p>
+    {% endif %}
+
+    <form hx-post="{{ url_for('main.api_settings_zotero') }}"
+          hx-target="#zotero-status"
+          hx-swap="innerHTML"
+          class="config-form">
+        <div class="form-group">
+            <label for="zotero_days_lookback">Days Lookback:</label>
+            <input type="number"
+                   id="zotero_days_lookback"
+                   name="days_lookback"
+                   min="1"
+                   max="365"
+                   value="{{ zotero_config.days_lookback or 7 }}"
+                   placeholder="7">
+            <small class="form-hint">How many days of recent papers to fetch.</small>
+        </div>
+        <div class="form-group">
+            <label for="zotero_include_keywords">Include Keywords (optional):</label>
+            <input type="text"
+                   id="zotero_include_keywords"
+                   name="include_keywords"
+                   value="{{ zotero_config.include_keywords | join(', ') if zotero_config.include_keywords else '' }}"
+                   placeholder="machine learning, AI">
+            <small class="form-hint">Comma-separated keywords. Leave empty to include all.</small>
+        </div>
+        <div class="form-group">
+            <label for="zotero_exclude_keywords">Exclude Keywords (optional):</label>
+            <input type="text"
+                   id="zotero_exclude_keywords"
+                   name="exclude_keywords"
+                   value="{{ zotero_config.exclude_keywords | join(', ') if zotero_config.exclude_keywords else '' }}"
+                   placeholder="review, survey">
+            <small class="form-hint">Comma-separated keywords to exclude.</small>
+        </div>
+        <button type="submit" class="btn" {% if not zotero_config.configured %}disabled{% endif %}>
+            Update Zotero Settings
+        </button>
+    </form>
+    <div id="zotero-status"></div>
+</div>

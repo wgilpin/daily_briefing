@@ -217,7 +217,7 @@ def consolidate():
 
         if not parsed_items:
             result["errors"].append("No parsed items found. Please process emails first.")
-            return f"""
+            return """
             <div id="consolidation-status" class="status error">
                 <p>No items to consolidate. Please process emails first.</p>
             </div>
@@ -570,6 +570,12 @@ def update_consolidation_prompt():
             <p>Consolidation prompt updated successfully.</p>
         </div>
         """
+    except Exception as e:
+        return f"""
+        <div id="consolidation-status" class="status error">
+            <p>Error saving configuration: {str(e)[:100]}</p>
+        </div>
+        """
 
 
 @bp.route("/config/retention", methods=["POST"])
@@ -618,11 +624,5 @@ def update_retention_limit():
         return f"""
         <div id="retention-status" class="status error">
             <p>Failed to save retention limit: {str(e)}</p>
-        </div>
-        """
-    except Exception as e:
-        return f"""
-        <div id="consolidation-status" class="status error">
-            <p>Failed to save configuration: {str(e)}</p>
         </div>
         """

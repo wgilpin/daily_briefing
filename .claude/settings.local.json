@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(git log:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(bash:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(echo:*)",
+      "Bash(uv run ruff check:*)",
+      "Bash(uv run python -m ruff check:*)",
+      "Bash(uv add:*)",
+      "Bash(uv run mypy:*)"
     ],
     "deny": [],
     "ask": []

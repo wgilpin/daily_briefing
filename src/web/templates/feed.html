@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block title %}Unified Feed - Daily Briefing{% endblock %}
+
+{% block content %}
+<div class="feed-header">
+    <h2>Unified Feed</h2>
+    <div class="feed-actions">
+        <button
+            id="refresh-btn"
+            hx-post="/api/refresh"
+            hx-target="#refresh-status"
+            hx-swap="innerHTML"
+            hx-indicator="#refresh-spinner"
+            class="btn">
+            <span id="refresh-spinner" class="htmx-indicator">&#8635;</span>
+            Refresh Feed
+        </button>
+    </div>
+</div>
+
+<div id="refresh-status"></div>
+
+<div class="feed-filters">
+    <div class="filter-group search-group">
+        <label for="search-input">Search:</label>
+        <input
+            type="text"
+            id="search-input"
+            name="q"
+            placeholder="Search by keyword..."
+            value="{{ query or '' }}"
+            hx-get="/api/feed"
+            hx-target="#feed-items"
+            hx-swap="innerHTML"
+            hx-trigger="keyup changed delay:300ms"
+            hx-include="#days-filter, .filter-btn.active">
+        <button
+            type="button"
+            class="search-clear"
+            onclick="document.getElementById('search-input').value=''; htmx.trigger('#search-input', 'keyup');">
+            &times;
+        </button>
+    </div>
+    <div class="filter-group">
+        <label>Source:</label>
+        <div class="filter-buttons">
+            <button
+                class="filter-btn {% if not source_type or source_type == 'all' %}active{% endif %}"
+                hx-get="/api/feed"
+                hx-target="#feed-items"
+                hx-swap="innerHTML"
+                hx-vals='{"source": "all"}'
+                hx-include="#search-input, #days-filter">
+                All
+            </button>
+            <button
+                class="filter-btn {% if source_type == 'zotero' %}active{% endif %}"
+                hx-get="/api/feed"
+                hx-target="#feed-items"
+                hx-swap="innerHTML"
+                hx-vals='{"source": "zotero"}'
+                hx-include="#search-input, #days-filter">
+                Zotero
+            </button>
+            <button
+                class="filter-btn {% if source_type == 'newsletter' %}active{% endif %}"
+                hx-get="/api/feed"
+                hx-target="#feed-items"
+                hx-swap="innerHTML"
+                hx-vals='{"source": "newsletter"}'
+                hx-include="#search-input, #days-filter">
+                Newsletters
+            </button>
+        </div>
+    </div>
+    <div class="filter-group">
+        <label for="days-filter">Days:</label>
+        <select
+            id="days-filter"
+            hx-get="/api/feed"
+            hx-target="#feed-items"
+            hx-swap="innerHTML"
+            hx-include="#search-input, [name='source']"
+            name="days">
+            <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+            <option value="14" {% if days == 14 %}selected{% endif %}>Last 14 days</option>
+            <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+            <option value="" {% if not days %}selected{% endif %}>All time</option>
+        </select>
+    </div>
+</div>
+
+<div class="feed-stats">
+    <span>{{ items|length }} items</span>
+    {% if source_type and source_type != 'all' %}
+    <span class="filter-badge">Filtered by: {{ source_type }}</span>
+    {% endif %}
+    {% if query %}
+    <span class="filter-badge">Search: "{{ query }}"</span>
+    {% endif %}
+</div>
+
+<div id="feed-items" class="feed-items">
+    {% if items %}
+        {% for item in items %}
+            {% include "partials/feed_item.html" %}
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <p>No feed items found.</p>
+            <p>Click "Refresh Feed" to fetch items from your sources.</p>
+        </div>
+    {% endif %}
+</div>
+
+{% if items|length >= page_size %}
+<div class="pagination">
+    <button
+        class="btn btn-secondary"
+        hx-get="/api/feed"
+        hx-target="#feed-items"
+        hx-swap="innerHTML"
+        hx-vals='{"offset": {{ offset + page_size }}, "source": "{{ source_type or 'all' }}", "days": "{{ days or '' }}"}'>
+        Load More
+    </button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.feed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.feed-header h2 {
+    margin: 0;
+}
+
+.feed-actions {
+    display: flex;
+    gap: 10px;
+}
+
+#refresh-spinner {
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.htmx-request #refresh-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.feed-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.search-group {
+    flex: 1;
+    max-width: 400px;
+    position: relative;
+}
+
+.search-group input {
+    width: 100%;
+    padding: 8px 30px 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1em;
+}
+
+.search-group input:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    color: #999;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+.search-clear:hover {
+    color: #666;
+}
+
+.filter-group label {
+    font-weight: 500;
+    margin-bottom: 0;
+}
+
+.filter-buttons {
+    display: flex;
+    gap: 5px;
+}
+
+.filter-btn {
+    padding: 8px 15px;
+    border: 1px solid #ddd;
+    background-color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.filter-btn:hover {
+    background-color: #ecf0f1;
+}
+
+.filter-btn.active {
+    background-color: #3498db;
+    color: white;
+    border-color: #3498db;
+}
+
+select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1em;
+    background-color: white;
+}
+
+.feed-stats {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.filter-badge {
+    background-color: #e8f4f8;
+    padding: 2px 8px;
+    border-radius: 3px;
+    color: #3498db;
+}
+
+.feed-items {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    color: #666;
+}
+
+.empty-state p {
+    margin-bottom: 10px;
+}
+
+.pagination {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.btn-secondary {
+    background-color: #95a5a6;
+}
+
+.btn-secondary:hover {
+    background-color: #7f8c8d;
+}
+
+/* Status messages */
+#refresh-status {
+    margin-bottom: 15px;
+}
+
+#refresh-status .status {
+    margin-bottom: 0;
+}
+
+#refresh-status .status.partial {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+</style>
+{% endblock %}

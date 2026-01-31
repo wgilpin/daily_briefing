@@ -1,50 +1,111 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report:
+- Version change: 0.0.0 → 1.0.0 (initial constitution)
+- Modified principles: N/A (new file)
+- Added sections: Core Principles (7), Technology Stack, Development Workflow, Governance
+- Removed sections: N/A
+- Templates requiring updates:
+  - .specify/templates/plan-template.md ✅ (compatible)
+  - .specify/templates/spec-template.md ✅ (compatible)
+  - .specify/templates/tasks-template.md ✅ (compatible)
+- Follow-up TODOs: None
+-->
+
+# Daily Briefing Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Technology Stack
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Python 3.13+ with uv for package management. Coolify PostgreSQL for all persistent storage. Coolify platform-level authentication for access control. No local SQLite or file-based storage in production.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Strong Typing (NON-NEGOTIABLE)
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+All code MUST use strong typing enforced by mypy. Function arguments and return values MUST use Pydantic models or TypedDict - never plain `dict`. The `Any` type is prohibited except where absolutely unavoidable (document justification). All type hints MUST be explicit and complete.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Backend TDD
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+Test-Driven Development is REQUIRED for backend services and business logic:
+- Write tests first, verify they fail, then implement
+- Red-Green-Refactor cycle strictly enforced
+- Tests are NOT required for: frontend components, API endpoint handlers, UI templates
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Test Isolation (NON-NEGOTIABLE)
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Tests MUST NOT call remote APIs. All external dependencies MUST be mocked:
+- Zotero API: mock responses
+- Gmail API: mock responses
+- Gemini LLM: mock responses
+- PostgreSQL: use test database or mock
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+If a test inherently requires a real remote API (e.g., LLM behavior verification), DO NOT write that test. Skip it entirely rather than creating flaky or slow tests.
+
+### V. Simplicity First
+
+This is a demo/prototype, not a production system. Code MUST be as simple as possible:
+- No premature abstractions
+- No over-engineering
+- No "future-proofing" beyond stated extensibility requirements
+- Prefer explicit over clever
+- Delete unused code immediately
+
+### VI. Feature Discipline (NON-NEGOTIABLE)
+
+NEVER add new features without explicitly checking with the user first. The scope is defined in the spec. If implementation reveals a gap, ASK before adding functionality. This applies to:
+- New endpoints
+- New UI elements
+- New configuration options
+- New integrations
+
+### VII. Code Quality Gates
+
+All code MUST pass the linter (ruff) before saving. No exceptions. Fix lint errors immediately, not "later". This includes:
+- Type checking (mypy)
+- Import sorting
+- Code formatting
+- Unused imports/variables
+
+## Technology Stack
+
+| Component | Choice | Notes |
+|-----------|--------|-------|
+| Language | Python 3.13+ | Use modern Python features |
+| Package Manager | uv | Fast, reliable dependency management |
+| Database | Coolify PostgreSQL | All persistence via DATABASE_URL env var |
+| Authentication | Coolify Auth | Platform-level, not in-app |
+| Web Framework | Flask | Existing codebase |
+| LLM | Google Gemini | For newsletter parsing only |
+| Type Checking | mypy + Pydantic | Strict mode |
+| Linting | ruff | Must pass before commit |
+| Testing | pytest | With mocking for external APIs |
+
+## Development Workflow
+
+### Before Writing Code
+1. Verify task is in scope (check spec)
+2. If adding backend service: write failing test first
+3. If unclear: ASK before implementing
+
+### While Writing Code
+1. Use strong types (Pydantic/TypedDict)
+2. Mock all external APIs in tests
+3. Keep it simple - minimal code to meet requirement
+4. Run linter frequently
+
+### Before Saving/Committing
+1. Run `ruff check --fix`
+2. Run `mypy`
+3. Run `pytest` (for changed areas)
+4. Verify no `Any` types added without justification
+5. Verify no plain `dict` in function signatures
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes all other development practices for this project. Amendments require:
+1. Explicit user approval
+2. Documentation of change rationale
+3. Version increment
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+All code reviews and implementations MUST verify compliance with these principles. Violations require justification documented in code comments.
+
+**Version**: 1.0.0 | **Ratified**: 2026-01-30 | **Last Amended**: 2026-01-30

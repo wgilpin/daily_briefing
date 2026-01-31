@@ -1,0 +1,20 @@
+<div id="refresh-status" class="status {{ status_class }}">
+    <p><strong>{{ status_text }}</strong></p>
+    {% if source_messages %}
+    <p>{{ source_messages | join('. ') }}</p>
+    {% endif %}
+    {% if total_items is defined %}
+    <p>Total: {{ total_items }} items fetched</p>
+    {% endif %}
+    {% if error_message %}
+    <p>Error: {{ error_message }}</p>
+    {% endif %}
+</div>
+
+<style>
+#refresh-status.partial {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+</style>

@@ -160,7 +160,7 @@ def parse_newsletter(
         except json.JSONDecodeError as e:
             raise ValueError(f"LLM returned invalid JSON: {e}") from e
 
-    except ValueError as e:
+    except ValueError:
         # Re-raise ValueError as-is
         raise
     except Exception as e:

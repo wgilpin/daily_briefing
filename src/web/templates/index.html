@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Newsletter Aggregator{% endblock %}
+{% block title %}Newsletter Admin - Daily Briefing{% endblock %}
 
 {% block content %}
-<h2>Dashboard</h2>
+<h2>Newsletter Admin</h2>
 
 <div class="dashboard-stats">
     <div class="stat-card">
@@ -31,11 +31,11 @@
 <div class="collection-section">
     <h3>Email Collection</h3>
     <p>Collect emails from configured newsletter senders via Gmail.</p>
-    
-    <form hx-post="/collect" hx-target="#collection-status" hx-swap="outerHTML">
+
+    <form hx-post="{{ url_for('newsletter.collect') }}" hx-target="#collection-status" hx-swap="outerHTML">
         <button type="submit" class="btn">Collect Emails</button>
     </form>
-    
+
     <div id="collection-status"></div>
     <div id="collection-stats"></div>
 </div>
@@ -43,11 +43,11 @@
 <div class="processing-section">
     <h3>Process Emails</h3>
     <p>Convert collected emails to markdown and parse newsletter items.</p>
-    
-    <form hx-post="/process" hx-target="#processing-status" hx-swap="outerHTML">
+
+    <form hx-post="{{ url_for('newsletter.process') }}" hx-target="#processing-status" hx-swap="outerHTML">
         <button type="submit" class="btn">Process Emails</button>
     </form>
-    
+
     <div id="processing-status"></div>
     <div id="processing-stats"></div>
 </div>
@@ -55,11 +55,11 @@
 <div class="consolidation-section">
     <h3>Consolidate Newsletter</h3>
     <p>Generate a consolidated newsletter digest from all parsed items.</p>
-    
-    <form hx-post="/consolidate" hx-target="#consolidation-status" hx-swap="outerHTML">
+
+    <form hx-post="{{ url_for('newsletter.consolidate') }}" hx-target="#consolidation-status" hx-swap="outerHTML">
         <button type="submit" class="btn">Consolidate Newsletter</button>
     </form>
-    
+
     <div id="consolidation-status"></div>
     <div id="digest-section"></div>
 </div>
@@ -67,7 +67,7 @@
 <div class="info-section">
     <h3>Getting Started</h3>
     <ol>
-        <li>Configure newsletter senders in the <a href="/config">Configuration</a> page</li>
+        <li>Configure newsletter senders in the <a href="{{ url_for('newsletter.config') }}">Configuration</a> page</li>
         <li>Set up Gmail OAuth credentials (see README for instructions)</li>
         <li>Click "Collect Emails" to retrieve newsletters from Gmail</li>
     </ol>

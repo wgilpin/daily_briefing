@@ -15,6 +15,10 @@ dependencies = [
     "google-auth-httplib2>=0.2.0",
     "html2text>=2024.2.26",
     "google-genai>=0.2.0",
+    "psycopg2-binary>=2.9.9",
+    "tenacity>=8.2.3",
+    "cryptography>=42.0.0",
+    "pydantic>=2.6.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +32,7 @@ zotero-digest = "src.cli.main:main"
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.14.14",
 ]
 
 [tool.pytest.ini_options]

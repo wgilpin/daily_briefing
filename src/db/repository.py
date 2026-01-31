@@ -1,0 +1,375 @@
+"""Repository for database CRUD operations.
+
+Provides data access methods for feed items and source configurations.
+"""
+
+import json
+from datetime import datetime, timezone
+from typing import Optional
+
+from src.db.connection import get_connection
+from src.models.feed_item import FeedItem
+from src.models.source import SourceConfig
+
+
+class Repository:
+    """Database repository for feed items and source configurations."""
+
+    def save_feed_item(self, item: FeedItem) -> None:
+        """Save a feed item to the database.
+
+        Uses INSERT ... ON CONFLICT to upsert the item.
+
+        Args:
+            item: FeedItem to save
+        """
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO feed_items
+                    (id, source_type, source_id, title, item_date, summary, link, metadata, fetched_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    summary = EXCLUDED.summary,
+                    link = EXCLUDED.link,
+                    metadata = EXCLUDED.metadata,
+                    fetched_at = EXCLUDED.fetched_at
+                """,
+                (
+                    item.id,
+                    item.source_type,
+                    item.source_id,
+                    item.title,
+                    item.date,
+                    item.summary,
+                    item.link,
+                    json.dumps(item.metadata),
+                    item.fetched_at,
+                ),
+            )
+        conn.commit()
+
+    def save_feed_items(self, items: list[FeedItem]) -> None:
+        """Save multiple feed items in a batch.
+
+        Args:
+            items: List of FeedItems to save
+        """
+        if not items:
+            return
+
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            for item in items:
+                cursor.execute(
+                    """
+                    INSERT INTO feed_items
+                        (id, source_type, source_id, title, item_date, summary, link, metadata, fetched_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        summary = EXCLUDED.summary,
+                        link = EXCLUDED.link,
+                        metadata = EXCLUDED.metadata,
+                        fetched_at = EXCLUDED.fetched_at
+                    """,
+                    (
+                        item.id,
+                        item.source_type,
+                        item.source_id,
+                        item.title,
+                        item.date,
+                        item.summary,
+                        item.link,
+                        json.dumps(item.metadata),
+                        item.fetched_at,
+                    ),
+                )
+        conn.commit()
+
+    def get_feed_items(
+        self,
+        source_type: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+        days: Optional[int] = None,
+    ) -> list[FeedItem]:
+        """Retrieve feed items from the database.
+
+        Args:
+            source_type: Filter by source type (optional)
+            limit: Maximum items to return
+            offset: Number of items to skip
+            days: Filter to items from last N days (optional)
+
+        Returns:
+            List of FeedItem objects sorted by date descending
+        """
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            query = """
+                SELECT id, source_type, source_id, title, item_date,
+                       summary, link, metadata, fetched_at
+                FROM feed_items
+                WHERE 1=1
+            """
+            params: list = []
+
+            if source_type:
+                query += " AND source_type = %s"
+                params.append(source_type)
+
+            if days:
+                query += " AND item_date >= NOW() - INTERVAL '%s days'"
+                params.append(days)
+
+            query += " ORDER BY item_date DESC LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+        return [
+            FeedItem(
+                id=row[0],
+                source_type=row[1],
+                source_id=row[2],
+                title=row[3],
+                date=row[4],
+                summary=row[5],
+                link=row[6],
+                metadata=row[7] if isinstance(row[7], dict) else json.loads(row[7] or "{}"),
+                fetched_at=row[8],
+            )
+            for row in rows
+        ]
+
+    def delete_feed_item(self, item_id: str) -> None:
+        """Delete a feed item by ID.
+
+        Args:
+            item_id: The feed item ID to delete
+        """
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM feed_items WHERE id = %s", (item_id,))
+        conn.commit()
+
+    def delete_old_feed_items(self, source_type: str, keep_count: int = 100) -> int:
+        """Delete old feed items, keeping only the most recent.
+
+        Args:
+            source_type: Source type to clean up
+            keep_count: Number of recent items to keep
+
+        Returns:
+            Number of deleted items
+        """
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                DELETE FROM feed_items
+                WHERE source_type = %s
+                AND id NOT IN (
+                    SELECT id FROM feed_items
+                    WHERE source_type = %s
+                    ORDER BY item_date DESC
+                    LIMIT %s
+                )
+                """,
+                (source_type, source_type, keep_count),
+            )
+            deleted = cursor.rowcount
+        conn.commit()
+        return deleted
+
+    def save_source_config(self, config: SourceConfig) -> None:
+        """Save source configuration.
+
+        Args:
+            config: SourceConfig to save
+        """
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO source_configs
+                    (source_type, enabled, last_refresh, last_error, settings, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (source_type) DO UPDATE SET
+                    enabled = EXCLUDED.enabled,
+                    last_refresh = EXCLUDED.last_refresh,
+                    last_error = EXCLUDED.last_error,
+                    settings = EXCLUDED.settings,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (
+                    config.source_type,
+                    config.enabled,
+                    config.last_refresh,
+                    config.last_error,
+                    json.dumps(config.settings),
+                    datetime.now(timezone.utc),
+                ),
+            )
+        conn.commit()
+
+    def get_source_config(self, source_type: str) -> Optional[SourceConfig]:
+        """Retrieve source configuration by type.
+
+        Args:
+            source_type: The source type to retrieve
+
+        Returns:
+            SourceConfig or None if not found
+        """
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT source_type, enabled, last_refresh, last_error, settings
+                FROM source_configs
+                WHERE source_type = %s
+                """,
+                (source_type,),
+            )
+            row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return SourceConfig(
+            source_type=row[0],
+            enabled=row[1],
+            last_refresh=row[2],
+            last_error=row[3],
+            settings=row[4] if isinstance(row[4], dict) else json.loads(row[4] or "{}"),
+        )
+
+    def get_all_source_configs(self) -> list[SourceConfig]:
+        """Retrieve all source configurations.
+
+        Returns:
+            List of SourceConfig objects
+        """
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT source_type, enabled, last_refresh, last_error, settings
+                FROM source_configs
+                ORDER BY source_type
+                """
+            )
+            rows = cursor.fetchall()
+
+        return [
+            SourceConfig(
+                source_type=row[0],
+                enabled=row[1],
+                last_refresh=row[2],
+                last_error=row[3],
+                settings=row[4] if isinstance(row[4], dict) else json.loads(row[4] or "{}"),
+            )
+            for row in rows
+        ]
+
+    # =========================================================================
+    # OAuth Token Methods
+    # =========================================================================
+
+    def save_oauth_token(
+        self,
+        provider: str,
+        token_data: dict,
+        expires_at: Optional[datetime] = None,
+    ) -> None:
+        """Save an encrypted OAuth token.
+
+        Args:
+            provider: OAuth provider name (e.g., 'gmail')
+            token_data: Token dictionary to encrypt and store
+            expires_at: Token expiration datetime (optional)
+        """
+        from src.utils.crypto import encrypt_token
+
+        encrypted = encrypt_token(token_data)
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO oauth_tokens
+                    (provider, encrypted_token, expires_at, updated_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (provider) DO UPDATE SET
+                    encrypted_token = EXCLUDED.encrypted_token,
+                    expires_at = EXCLUDED.expires_at,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (
+                    provider,
+                    encrypted.decode("latin-1"),  # Store bytes as text
+                    expires_at,
+                    datetime.now(timezone.utc),
+                ),
+            )
+        conn.commit()
+
+    def get_oauth_token(
+        self, provider: str
+    ) -> Optional[tuple[dict, Optional[datetime]]]:
+        """Retrieve and decrypt an OAuth token.
+
+        Args:
+            provider: OAuth provider name (e.g., 'gmail')
+
+        Returns:
+            Tuple of (token_data dict, expires_at datetime) or None if not found
+        """
+        from src.utils.crypto import decrypt_token
+
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT provider, encrypted_token, expires_at, updated_at
+                FROM oauth_tokens
+                WHERE provider = %s
+                """,
+                (provider,),
+            )
+            row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        encrypted = row[1].encode("latin-1")  # Convert text back to bytes
+        token_data = decrypt_token(encrypted)
+        expires_at = row[2]
+
+        return token_data, expires_at
+
+    def delete_oauth_token(self, provider: str) -> None:
+        """Delete an OAuth token.
+
+        Args:
+            provider: OAuth provider name (e.g., 'gmail')
+        """
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM oauth_tokens WHERE provider = %s",
+                (provider,),
+            )
+        conn.commit()
+
+    def save_feed_items_batch(self, items: list[FeedItem]) -> None:
+        """Save multiple feed items in a batch (alias for save_feed_items).
+
+        Args:
+            items: List of FeedItems to save
+        """
+        self.save_feed_items(items)

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Newsletter Aggregator{% endblock %}</title>
+    <title>{% block title %}Daily Briefing{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
@@ -12,10 +12,11 @@
 <body>
     <div class="container">
         <header>
-            <h1>Newsletter Aggregator</h1>
+            <h1>Daily Briefing</h1>
             <nav>
-                <a href="{{ url_for('newsletter.index') }}">Dashboard</a>
-                <a href="{{ url_for('newsletter.config') }}">Configuration</a>
+                <a href="{{ url_for('main.feed') }}">Feed</a>
+                <a href="{{ url_for('main.settings') }}">Settings</a>
+                <a href="{{ url_for('newsletter.index') }}">Newsletter Admin</a>
             </nav>
         </header>
 
@@ -24,7 +25,7 @@
         </main>
 
         <footer>
-            <p>&copy; 2024 Newsletter Aggregator</p>
+            <p>&copy; 2024 Daily Briefing</p>
         </footer>
     </div>
 

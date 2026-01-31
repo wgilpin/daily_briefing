@@ -72,7 +72,7 @@ def consolidate_newsletters(
 
         return content
 
-    except Exception as e:
+    except Exception:
         # On error, return fallback format with raw structured lists
         # This provides partial data as per edge case spec (FR-014, FR-015)
         return _generate_fallback_digest(parsed_items)
