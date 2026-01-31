@@ -10,7 +10,12 @@
       "Bash(uv run ruff check:*)",
       "Bash(uv run python -m ruff check:*)",
       "Bash(uv add:*)",
-      "Bash(uv run mypy:*)"
+      "Bash(uv run mypy:*)",
+      "Bash(tree:*)",
+      "Bash(ls:*)",
+      "Bash(git add:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(uv sync:*)"
     ],
     "deny": [],
     "ask": []
