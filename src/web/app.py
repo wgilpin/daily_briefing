@@ -102,11 +102,9 @@ def create_app() -> Flask:
         return {"error": "Internal server error"}, 500
 
     # Register blueprints
-    from src.web.routes import bp as newsletter_bp
     from src.web.feed_routes import bp as main_bp
 
     app.register_blueprint(main_bp)
-    app.register_blueprint(newsletter_bp, url_prefix="/newsletter")
 
     return app
 
