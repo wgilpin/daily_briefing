@@ -6,7 +6,6 @@
     <title>{% block title %}Daily Briefing{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="{{ url_for('static', filename='app.js') }}"></script>
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -16,7 +15,6 @@
             <nav>
                 <a href="{{ url_for('main.feed') }}">Feed</a>
                 <a href="{{ url_for('main.settings') }}">Settings</a>
-                <a href="{{ url_for('newsletter.index') }}">Newsletter Admin</a>
             </nav>
         </header>
 
@@ -29,6 +27,7 @@
         </footer>
     </div>
 
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

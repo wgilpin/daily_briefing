@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Flask (Docker DB)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "flask",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+            "env": {
+                "FLASK_APP": "src.web.app",
+                "FLASK_ENV": "development",
+                "FLASK_DEBUG": "1",
+                "DATABASE_URL": "postgresql://briefing:briefing@localhost:5432/daily_briefing",
+                "PYTHONUNBUFFERED": "1"
+            },
+            "args": [
+                "run",
+                "--host=127.0.0.1",
+                "--port=5000"
+            ],
+            "jinja": true,
+            "justMyCode": false,
+            "envFile": "${workspaceFolder}/.env",
+            "console": "integratedTerminal",
+            "preLaunchTask": "start-docker-db",
+            "postDebugTask": "stop-docker-db"
+        }
+    ]
+}

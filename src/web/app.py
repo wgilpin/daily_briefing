@@ -96,10 +96,11 @@ def create_app() -> Flask:
         """Handle 404 errors."""
         return {"error": "Not found"}, 404
 
-    @app.errorhandler(500)
-    def internal_error(error):
-        """Handle 500 errors."""
-        return {"error": "Internal server error"}, 500
+    # Temporarily disabled to see actual errors during debugging
+    # @app.errorhandler(500)
+    # def internal_error(error):
+    #     """Handle 500 errors."""
+    #     return {"error": "Internal server error"}, 500
 
     # Register blueprints
     from src.web.feed_routes import bp as main_bp

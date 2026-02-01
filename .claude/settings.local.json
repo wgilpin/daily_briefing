@@ -15,7 +15,16 @@
       "Bash(ls:*)",
       "Bash(git add:*)",
       "Bash(python -m pytest:*)",
-      "Bash(uv sync:*)"
+      "Bash(uv sync:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose:*)",
+      "Bash(where:*)",
+      "Bash(docker container ls:*)",
+      "Bash(\"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" compose logs app --tail 30)",
+      "Bash(\"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" compose logs app --tail 50)",
+      "Bash(\"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" compose logs app --tail 100)",
+      "Bash(\"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" compose logs:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

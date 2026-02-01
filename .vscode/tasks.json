@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "start-docker-db",
+            "type": "shell",
+            "command": "docker ps -q --filter publish=5432 | xargs -r docker stop && docker compose -f docker-compose.dev.yml down && docker compose -f docker-compose.dev.yml up -d",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "stop-docker-db",
+            "type": "shell",
+            "command": "docker compose -f docker-compose.dev.yml down",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

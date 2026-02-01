@@ -48,8 +48,14 @@ class ZoteroSource:
                 exclude=self._config.exclude_keywords,
             )
 
+        # Filter out attachments and notes (keep only top-level items)
+        top_level_items = [
+            item for item in raw_items
+            if item.get("data", {}).get("itemType") not in ("attachment", "note")
+        ]
+
         # Convert to FeedItem format
-        return [self._to_feed_item(item) for item in raw_items]
+        return [self._to_feed_item(item) for item in top_level_items]
 
     def _to_feed_item(self, zotero_item: Union[ZoteroItem, dict[str, Any]]) -> FeedItem:
         """Convert Zotero API item to FeedItem.
