@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Optional
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, make_response, render_template, request
 
 from src.models.feed_item import FeedItem
 from src.models.source import NewsletterConfig, ZoteroConfig
@@ -211,7 +211,7 @@ def api_refresh():
     Trigger refresh of all feed sources.
 
     Fetches new items from all configured sources and saves them
-    to the database. Returns HTMX partial with status.
+    to the database. Returns HTMX partial with status and triggers feed reload.
 
     Returns:
         HTML: HTMX response fragment with refresh status
@@ -245,13 +245,16 @@ def api_refresh():
                 status_class = "success"
                 status_text = "Refresh complete"
 
-            return f"""
+            response = make_response(f"""
             <div id="refresh-status" class="status {status_class}">
                 <p><strong>{status_text}</strong></p>
                 <p>{'. '.join(source_messages)}</p>
                 <p>Total: {result['total_items']} items fetched</p>
             </div>
-            """
+            """)
+            # Trigger feed reload after status is shown
+            response.headers['HX-Trigger'] = 'feedRefreshed'
+            return response
         else:
             return """
             <div id="refresh-status" class="status error">

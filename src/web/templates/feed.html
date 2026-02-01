@@ -11,10 +11,15 @@
             hx-post="/api/refresh"
             hx-target="#refresh-status"
             hx-swap="innerHTML"
-            hx-indicator="#refresh-spinner"
             class="btn">
-            <span id="refresh-spinner" class="htmx-indicator">&#8635;</span>
-            Refresh Feed
+            <span class="refresh-content">
+                <span id="refresh-spinner" class="spinner">&#8635;</span>
+                <span class="refresh-text">Refresh Feed</span>
+            </span>
+            <span class="refresh-loading" style="display: none;">
+                <span class="spinner spinning">&#8635;</span>
+                <span>Refreshing...</span>
+            </span>
         </button>
     </div>
 </div>
@@ -101,7 +106,12 @@
     {% endif %}
 </div>
 
-<div id="feed-items" class="feed-items">
+<div id="feed-items"
+     class="feed-items"
+     hx-get="/api/feed"
+     hx-trigger="feedRefreshed from:body"
+     hx-swap="innerHTML"
+     hx-include="#search-input, #days-filter, .filter-btn.active">
     {% if items %}
         {% for item in items %}
             {% include "partials/feed_item.html" %}
@@ -146,18 +156,43 @@
     gap: 10px;
 }
 
-#refresh-spinner {
+/* Refresh button states */
+#refresh-btn {
+    position: relative;
+    min-width: 140px;
+}
+
+.spinner {
     display: inline-block;
     margin-right: 5px;
 }
 
-.htmx-request #refresh-spinner {
+.spinning {
     animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* Show/hide content based on HTMX request state */
+#refresh-btn.htmx-request .refresh-content {
+    display: none;
+}
+
+#refresh-btn.htmx-request .refresh-loading {
+    display: inline-flex !important;
+    align-items: center;
+}
+
+#refresh-btn.htmx-request {
+    background-color: #f39c12;
+    cursor: wait;
+}
+
+#refresh-btn.htmx-request:hover {
+    background-color: #e67e22;
 }
 
 .feed-filters {
@@ -269,6 +304,32 @@ select {
     display: flex;
     flex-direction: column;
     gap: 15px;
+    position: relative;
+    min-height: 200px;
+}
+
+/* Loading overlay for feed items during reload */
+.feed-items.htmx-request::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8);
+    z-index: 10;
+}
+
+.feed-items.htmx-request::after {
+    content: 'Loading feed...';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 11;
+    font-size: 1.1em;
+    color: #3498db;
+    font-weight: 500;
 }
 
 .empty-state {
