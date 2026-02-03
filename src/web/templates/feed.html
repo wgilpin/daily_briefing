@@ -88,6 +88,7 @@
             hx-swap="innerHTML"
             hx-include="#search-input, [name='source']"
             name="days">
+            <option value="1" {% if days == 1 %}selected{% endif %}>Last Day</option>
             <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
             <option value="14" {% if days == 14 %}selected{% endif %}>Last 14 days</option>
             <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>

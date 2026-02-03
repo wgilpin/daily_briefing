@@ -8,7 +8,7 @@ Defines configuration models for:
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -28,7 +28,7 @@ class SourceConfig(BaseModel):
     enabled: bool = Field(default=True)
     last_refresh: Optional[datetime] = Field(default=None)
     last_error: Optional[str] = Field(default=None)
-    settings: dict[str, str] = Field(
+    settings: dict[str, Union[str, int, bool, list[str]]] = Field(
         default_factory=dict,
         description="Source-specific settings",
     )

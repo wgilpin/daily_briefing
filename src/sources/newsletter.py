@@ -49,13 +49,16 @@ class NewsletterSource:
         1. Collect new emails from Gmail
         2. Convert emails to markdown
         3. Parse newsletters with LLM
-        4. Return all parsed items as FeedItems
+        4. Return items from recent emails only (based on config lookback period)
 
         Returns:
-            List of FeedItem objects from newsletter storage
+            List of FeedItem objects from recently collected newsletters
         """
         # Execute newsletter collection pipeline
         logger.info("Starting newsletter collection pipeline")
+
+        # Track items before pipeline starts (to identify new ones)
+        items_before = set(item.get("title") for item in self._fetch_from_storage())
 
         # Step 1: Collect emails from Gmail
         logger.info("Step 1: Collecting emails from Gmail")
@@ -72,6 +75,11 @@ class NewsletterSource:
                 logger.warning(f"Email collection: {error}")
 
         logger.info(f"Collected {collect_result['emails_collected']} new emails")
+
+        # If no new emails, skip remaining steps
+        if collect_result['emails_collected'] == 0:
+            logger.info("No new emails collected, skipping conversion and parsing")
+            return []
 
         # Step 2: Convert emails to markdown
         logger.info("Step 2: Converting emails to markdown")
@@ -103,17 +111,18 @@ class NewsletterSource:
 
         logger.info(f"Parsed {parse_result['emails_parsed']} newsletters")
 
-        # Step 4: Fetch all items from storage
-        raw_items = self._fetch_from_storage()
+        # Step 4: Fetch items from storage and return only NEW items
+        all_items = self._fetch_from_storage()
+        new_items = [item for item in all_items if item.get("title") not in items_before]
 
         # Convert to FeedItem format
         feed_items = [
             item
-            for item in (self._to_feed_item(raw, idx) for idx, raw in enumerate(raw_items))
+            for item in (self._to_feed_item(raw, idx) for idx, raw in enumerate(new_items))
             if item is not None
         ]
 
-        logger.info(f"Returning {len(feed_items)} newsletter items")
+        logger.info(f"Returning {len(feed_items)} new newsletter items (out of {len(all_items)} total)")
         return feed_items
 
     def _fetch_from_storage(self) -> list[dict[str, Any]]:

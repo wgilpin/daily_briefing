@@ -91,18 +91,20 @@ def collect_emails(
     sender_emails: list[str],
     processed_ids: set[str],
     days_lookback: int = 30,
+    max_per_sender: int = 1,
 ) -> list[dict]:
     """
     Collect emails from Gmail for specified senders.
 
     Queries Gmail API for emails from specified senders, excluding already processed emails.
-    Returns list of email dictionaries with required fields.
+    Limits collection to most recent N emails per sender to reduce LLM processing costs.
 
     Args:
         credentials: Authenticated Gmail credentials
         sender_emails: List of sender email addresses to collect from
         processed_ids: Set of message IDs already processed (to avoid duplicates)
         days_lookback: Number of days to look back for emails (default: 30)
+        max_per_sender: Maximum emails to collect per sender (default: 1)
 
     Returns:
         list[dict]: List of email dictionaries with keys:
@@ -132,109 +134,97 @@ def collect_emails(
     cutoff_date = datetime.now() - timedelta(days=days_lookback)
     date_filter = cutoff_date.strftime("%Y/%m/%d")
 
-    # Build query to filter by senders and date
-    # Gmail query format: from:email1 OR from:email2 after:YYYY/MM/DD
-    query_parts = [f"from:{email}" for email in sender_emails]
-    query = f"({' OR '.join(query_parts)}) after:{date_filter}"
+    # Collect emails per sender to enforce max_per_sender limit
+    all_emails = []
+    sender_counts = {email.lower(): 0 for email in sender_emails}
 
-    # Get list of messages
-    results = (
-        service.users()
-        .messages()
-        .list(userId="me", q=query, maxResults=100)
-        .execute()
-    )
+    # Query each sender separately to get most recent emails per sender
+    for sender_email in sender_emails:
+        query = f"from:{sender_email} after:{date_filter}"
 
-    messages = results.get("messages", [])
-    emails = []
+        # Get list of messages for this sender
+        results = (
+            service.users()
+            .messages()
+            .list(userId="me", q=query, maxResults=max_per_sender)
+            .execute()
+        )
 
-    for msg in messages:
-        message_id = msg["id"]
+        messages = results.get("messages", [])
 
-        # Skip if already processed
-        if message_id in processed_ids:
-            continue
+        for msg in messages:
+            message_id = msg["id"]
 
-        try:
-            # Get full message
-            message = (
-                service.users()
-                .messages()
-                .get(userId="me", id=message_id, format="full")
-                .execute()
-            )
-
-            # Extract headers
-            headers = {}
-            payload = message.get("payload", {})
-            for header in payload.get("headers", []):
-                headers[header["name"].lower()] = header["value"]
-
-            # Extract sender from headers
-            from_header = headers.get("from", "")
-            
-            # Extract email from "Name <email@example.com>" format or plain email
-            sender_email = from_header
-            if "<" in from_header:
-                # Extract email from "Name <email@example.com>"
-                sender_email = from_header.split("<")[1].split(">")[0].strip()
-            else:
-                # Plain email address
-                sender_email = from_header.strip()
-
-            # Normalize for comparison
-            sender_email_lower = sender_email.lower()
-
-            # Verify sender matches one of the configured senders (case-insensitive)
-            sender_matches = False
-            for configured_email in sender_emails:
-                if sender_email_lower == configured_email.lower():
-                    sender_matches = True
-                    break
-
-            if not sender_matches:
+            # Skip if already processed
+            if message_id in processed_ids:
                 continue
 
-            # Extract body content
-            body_html = None
-            body_text = None
+            try:
+                # Get full message
+                message = (
+                    service.users()
+                    .messages()
+                    .get(userId="me", id=message_id, format="full")
+                    .execute()
+                )
 
-            # Handle multipart messages
-            if "parts" in payload:
-                for part in payload["parts"]:
-                    mime_type = part.get("mimeType", "")
-                    body_data = part.get("body", {}).get("data", "")
+                # Extract headers
+                headers = {}
+                payload = message.get("payload", {})
+                for header in payload.get("headers", []):
+                    headers[header["name"].lower()] = header["value"]
 
+                # Extract sender from headers
+                from_header = headers.get("from", "")
+
+                # Extract email from "Name <email@example.com>" format or plain email
+                actual_sender = from_header
+                if "<" in from_header:
+                    # Extract email from "Name <email@example.com>"
+                    actual_sender = from_header.split("<")[1].split(">")[0].strip()
+                else:
+                    # Plain email address
+                    actual_sender = from_header.strip()
+
+                # Extract body content
+                body_html = None
+                body_text = None
+
+                # Handle multipart messages
+                if "parts" in payload:
+                    for part in payload["parts"]:
+                        mime_type = part.get("mimeType", "")
+                        body_data = part.get("body", {}).get("data", "")
+
+                        if mime_type == "text/html" and body_data:
+                            body_html = base64.urlsafe_b64decode(body_data).decode("utf-8")
+                        elif mime_type == "text/plain" and body_data:
+                            body_text = base64.urlsafe_b64decode(body_data).decode("utf-8")
+                else:
+                    # Single part message
+                    mime_type = payload.get("mimeType", "")
+                    body_data = payload.get("body", {}).get("data", "")
                     if mime_type == "text/html" and body_data:
                         body_html = base64.urlsafe_b64decode(body_data).decode("utf-8")
                     elif mime_type == "text/plain" and body_data:
                         body_text = base64.urlsafe_b64decode(body_data).decode("utf-8")
-            else:
-                # Single part message
-                mime_type = payload.get("mimeType", "")
-                body_data = payload.get("body", {}).get("data", "")
-                if mime_type == "text/html" and body_data:
-                    body_html = base64.urlsafe_b64decode(body_data).decode("utf-8")
-                elif mime_type == "text/plain" and body_data:
-                    body_text = base64.urlsafe_b64decode(body_data).decode("utf-8")
 
-            # Build email dict
-            email_dict = {
-                "message_id": message_id,
-                "sender": sender_email,
-                "subject": headers.get("subject", ""),
-                "date": headers.get("date", ""),
-                "body_html": body_html,
-                "body_text": body_text,
-                "headers": headers,
-            }
+                # Build email dict
+                email_dict = {
+                    "message_id": message_id,
+                    "sender": actual_sender,
+                    "subject": headers.get("subject", ""),
+                    "date": headers.get("date", ""),
+                    "body_html": body_html,
+                    "body_text": body_text,
+                    "headers": headers,
+                }
 
-            emails.append(email_dict)
+                all_emails.append(email_dict)
 
-        except Exception as e:
-            # Log error but continue with other emails
-            # In production, would use proper logging
-            logger.error(f"Error processing message {message_id}: {e}")
-            continue
+            except Exception as e:
+                # Log error but continue with other emails
+                logger.error(f"Error processing message {message_id}: {e}")
+                continue
 
-    return emails
+    return all_emails

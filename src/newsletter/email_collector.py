@@ -95,9 +95,12 @@ def collect_newsletter_emails(
         result["errors"].append(f"Failed to get processed message IDs: {str(e)}")
         return result
 
+    # Get max emails per sender from config (default 1)
+    max_per_sender = config.get("max_emails_per_sender", 1)
+
     # Collect emails
     try:
-        emails = collect_emails(service, sender_emails, processed_ids, days_lookback)
+        emails = collect_emails(service, sender_emails, processed_ids, days_lookback, max_per_sender)
     except Exception as e:
         result["errors"].append(f"Failed to collect emails: {str(e)}")
         return result
