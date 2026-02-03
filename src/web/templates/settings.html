@@ -17,6 +17,31 @@
 </div>
 
 <div class="settings-section">
+    <h3>Data Management</h3>
+    <p>Clear all feed items from the database to reload everything fresh.</p>
+
+    <div class="danger-zone">
+        <h4>Clear Past Items</h4>
+        <p class="warning-text">
+            <strong>Warning:</strong> This will permanently delete all feed items from the database.
+            This does not affect your user account or settings, only the cached articles and newsletter items.
+            The next refresh will reload everything fresh.
+        </p>
+        <button
+            id="clear-items-btn"
+            class="btn btn-danger"
+            onclick="if(confirm('Are you sure you want to delete ALL feed items? This cannot be undone.')) {
+                document.getElementById('clear-items-btn').disabled = true;
+                document.getElementById('clear-items-btn').textContent = 'Clearing...';
+                htmx.ajax('DELETE', '/api/feed/clear', {target: '#clear-status', swap: 'innerHTML'});
+            }">
+            Clear All Feed Items
+        </button>
+        <div id="clear-status"></div>
+    </div>
+</div>
+
+<div class="settings-section">
     <h3>Environment Variables</h3>
     <p>The following environment variables configure the application:</p>
     <table class="env-table">
@@ -410,6 +435,49 @@
     background-color: #f8d7da;
     color: #721c24;
     border: 1px solid #f5c6cb;
+}
+
+.danger-zone {
+    background-color: #fff5f5;
+    padding: 20px;
+    border-radius: 8px;
+    border: 2px solid #e74c3c;
+    margin-top: 15px;
+}
+
+.danger-zone h4 {
+    margin-top: 0;
+    color: #c0392b;
+}
+
+.warning-text {
+    background-color: #ffe6e6;
+    padding: 12px;
+    border-radius: 4px;
+    border-left: 4px solid #e74c3c;
+    margin-bottom: 15px;
+}
+
+.warning-text strong {
+    color: #c0392b;
+}
+
+.btn-danger {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #c0392b;
+}
+
+.btn-danger:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+#clear-status {
+    margin-top: 15px;
 }
 </style>
 {% endblock %}

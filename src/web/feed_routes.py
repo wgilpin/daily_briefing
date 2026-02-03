@@ -416,6 +416,45 @@ def api_health():
     )
 
 
+@bp.route("/api/feed/clear", methods=["DELETE"])
+@login_required
+def clear_feed_items():
+    """
+    Clear all feed items from the database.
+
+    Deletes all items from the feed_items table. This does not affect
+    user accounts, settings, or OAuth tokens - only cached feed items.
+
+    Returns:
+        HTML: Success or error message for HTMX display
+    """
+    try:
+        from src.db.connection import get_connection
+
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            # Delete all feed items
+            cursor.execute("DELETE FROM feed_items")
+            deleted_count = cursor.rowcount
+        conn.commit()
+
+        logger.info(f"Cleared {deleted_count} feed items from database")
+
+        return f"""
+        <div class="status success">
+            Successfully deleted {deleted_count} feed items.
+            <a href="/feed">Go to feed</a> to reload fresh data.
+        </div>
+        """
+    except Exception as e:
+        logger.error(f"Error clearing feed items: {e}")
+        return f"""
+        <div class="status error">
+            Error clearing feed items: {str(e)}
+        </div>
+        """, 500
+
+
 @bp.route("/settings")
 @login_required
 def settings():
