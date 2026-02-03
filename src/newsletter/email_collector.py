@@ -4,6 +4,7 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Optional
 
 from src.newsletter.gmail_client import authenticate_gmail, collect_emails
 from src.newsletter.markdown_converter import convert_to_markdown
@@ -28,6 +29,7 @@ def collect_newsletter_emails(
     tokens_path: str = "data/tokens.json",
     data_dir: str = "data/emails",
     db_path: str = "data/newsletter_aggregator.db",
+    days_lookback: Optional[int] = None,
 ) -> dict:
     """
     Collect newsletter emails from Gmail.
@@ -41,6 +43,7 @@ def collect_newsletter_emails(
         tokens_path: Path to store OAuth tokens (default: data/tokens.json)
         data_dir: Directory to save email files (default: data/emails)
         db_path: Path to SQLite database (default: data/newsletter_aggregator.db)
+        days_lookback: Days to look back for emails (overrides config, default: from config or 30)
 
     Returns:
         dict: Result dictionary with keys:
@@ -63,7 +66,9 @@ def collect_newsletter_emails(
     try:
         config = load_config(config_path)
         senders = config.get("senders", {})
-        days_lookback = config.get("days_lookback", 30)
+        # Use provided days_lookback or fall back to config or default
+        if days_lookback is None:
+            days_lookback = config.get("days_lookback", 30)
     except Exception as e:
         result["errors"].append(f"Failed to load configuration: {str(e)}")
         return result

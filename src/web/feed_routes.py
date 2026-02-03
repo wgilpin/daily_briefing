@@ -20,16 +20,22 @@ logger = logging.getLogger(__name__)
 DEFAULT_PAGE_SIZE = 50
 
 
-def get_feed_service_with_sources() -> FeedService:
+def get_feed_service_with_sources(days_lookback: Optional[int] = None) -> FeedService:
     """Get FeedService with registered sources.
 
     Creates a FeedService instance with Zotero and Newsletter sources
     configured from environment variables.
 
+    Args:
+        days_lookback: Number of days to look back for items (overrides defaults)
+
     Returns:
         FeedService: Service instance with sources registered
     """
     service = FeedService()
+
+    # Use provided days_lookback or default to 7
+    effective_days = days_lookback if days_lookback is not None else 7
 
     # Register Zotero source if configured
     zotero_library_id = os.environ.get("ZOTERO_LIBRARY_ID")
@@ -38,7 +44,7 @@ def get_feed_service_with_sources() -> FeedService:
         zotero_config = ZoteroConfig(
             library_id=zotero_library_id,
             api_key=zotero_api_key,
-            days_lookback=7,
+            days_lookback=effective_days,
         )
         zotero_source = ZoteroSource(zotero_config)
         service.register_source(zotero_source)
@@ -47,6 +53,7 @@ def get_feed_service_with_sources() -> FeedService:
     newsletter_config = NewsletterConfig(
         sender_emails=[],  # Will be loaded from config file
         max_emails_per_refresh=20,
+        days_lookback=effective_days,
     )
     newsletter_source = NewsletterSource(newsletter_config)
     service.register_source(newsletter_source)
@@ -93,7 +100,7 @@ def feed():
     if source_type == "all":
         source_type = None
 
-    days_str = request.args.get("days", "7")
+    days_str = request.args.get("days", "1")
     days: Optional[int] = None
     if days_str:
         try:
@@ -224,19 +231,31 @@ def api_refresh():
     Fetches new items from all configured sources and saves them
     to the database. Returns HTMX partial with status and triggers feed reload.
 
+    Form Parameters:
+        days: Number of days to look back for items (optional)
+
     Returns:
         HTML: HTMX response fragment with refresh status
     """
     try:
+        # Get days parameter from form data
+        days_str = request.form.get("days", "")
+        days_lookback: Optional[int] = None
+        if days_str:
+            try:
+                days_lookback = int(days_str)
+            except ValueError:
+                days_lookback = None
+
         # Use print for immediate output to debug console
         print("=" * 60, flush=True)
-        print("REFRESH TRIGGERED - Starting feed refresh", flush=True)
+        print(f"REFRESH TRIGGERED - Starting feed refresh (days_lookback={days_lookback})", flush=True)
         print("=" * 60, flush=True)
         logger.info("=" * 60)
-        logger.info("REFRESH TRIGGERED - Starting feed refresh")
+        logger.info(f"REFRESH TRIGGERED - Starting feed refresh (days_lookback={days_lookback})")
         logger.info("=" * 60)
 
-        service = get_feed_service_with_sources()
+        service = get_feed_service_with_sources(days_lookback=days_lookback)
         print(f"Registered sources: {list(service.sources.keys())}", flush=True)
         logger.info(f"Registered sources: {list(service.sources.keys())}")
 
@@ -422,27 +441,52 @@ def clear_feed_items():
     """
     Clear all feed items from the database.
 
-    Deletes all items from the feed_items table. This does not affect
-    user accounts, settings, or OAuth tokens - only cached feed items.
+    Deletes all items from the PostgreSQL feed_items table and clears
+    the SQLite newsletter storage. This does not affect user accounts,
+    settings, or OAuth tokens - only cached feed items.
 
     Returns:
         HTML: Success or error message for HTMX display
     """
     try:
+        import sqlite3
         from src.db.connection import get_connection
 
+        # Clear PostgreSQL feed_items
         conn = get_connection()
         with conn.cursor() as cursor:
-            # Delete all feed items
             cursor.execute("DELETE FROM feed_items")
-            deleted_count = cursor.rowcount
+            pg_deleted_count = cursor.rowcount
         conn.commit()
 
-        logger.info(f"Cleared {deleted_count} feed items from database")
+        logger.info(f"Cleared {pg_deleted_count} feed items from PostgreSQL")
+
+        # Clear SQLite newsletter storage
+        sqlite_deleted_count = 0
+        try:
+            sqlite_conn = sqlite3.connect("data/newsletter_aggregator.db")
+            sqlite_cursor = sqlite_conn.cursor()
+
+            # Delete all newsletter items
+            sqlite_cursor.execute("DELETE FROM newsletter_items")
+            items_deleted = sqlite_cursor.rowcount
+
+            # Delete all processed email records
+            sqlite_cursor.execute("DELETE FROM processed_emails")
+            emails_deleted = sqlite_cursor.rowcount
+
+            sqlite_conn.commit()
+            sqlite_conn.close()
+
+            sqlite_deleted_count = items_deleted + emails_deleted
+            logger.info(f"Cleared {items_deleted} items and {emails_deleted} processed emails from SQLite")
+        except Exception as sqlite_error:
+            logger.warning(f"Failed to clear SQLite newsletter storage: {sqlite_error}")
 
         return f"""
         <div class="status success">
-            Successfully deleted {deleted_count} feed items.
+            Successfully deleted {pg_deleted_count} feed items from database
+            and cleared {sqlite_deleted_count} newsletter records.
             <a href="/feed">Go to feed</a> to reload fresh data.
         </div>
         """

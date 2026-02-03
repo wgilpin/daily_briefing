@@ -61,13 +61,14 @@ class NewsletterSource:
         items_before = set(item.get("title") for item in self._fetch_from_storage())
 
         # Step 1: Collect emails from Gmail
-        logger.info("Step 1: Collecting emails from Gmail")
+        logger.info(f"Step 1: Collecting emails from Gmail (days_lookback={self._config.days_lookback})")
         collect_result = collect_newsletter_emails(
             config_path="config/senders.json",
             credentials_path="config/credentials.json",
             tokens_path="data/tokens.json",
             data_dir="data/emails",
             db_path=self._db_path,
+            days_lookback=self._config.days_lookback,
         )
 
         if collect_result["errors"]:
