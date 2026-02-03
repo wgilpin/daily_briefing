@@ -323,6 +323,16 @@ See [specs/003-unified-feed-app/](specs/003-unified-feed-app/) for detailed arch
 - Try clicking "Refresh Feed" to fetch new content
 - Check that sources have recent content available
 
+## Security
+
+- **Authentication**: Password-based login with Argon2id hashing
+- **Brute-force protection**: 5-second delay on failed login attempts
+- **Session management**: 30-day sessions stored in PostgreSQL
+- **Public registration disabled**: Prevents unauthorized access to your personal feed
+- **Simple validation**: Email format check via regex (no external DNS lookups)
+
+**Important**: This is a personal application. All authenticated users share the same feed data. Only create accounts for trusted users.
+
 ## Specifications
 
 See the `specs/` directory for detailed feature specifications:
@@ -330,6 +340,7 @@ See the `specs/` directory for detailed feature specifications:
 - [001-zotero-digest](specs/001-zotero-digest/) - Original Zotero CLI tool (deprecated)
 - [002-newsletter-aggregator](specs/002-newsletter-aggregator/) - Newsletter collection (integrated)
 - [003-unified-feed-app](specs/003-unified-feed-app/) - Current unified application
+- [004-user-login](specs/004-user-login/) - User authentication system
 
 ## License
 
