@@ -4,6 +4,7 @@ A unified web application that aggregates content from multiple sources (Zotero 
 
 ## Features
 
+- **User Authentication**: Secure password-based login to protect your personal feed
 - **Unified Feed**: Single view combining items from all configured sources
 - **Multiple Sources**:
   - Zotero library additions (research papers)
@@ -52,11 +53,29 @@ GOOGLE_CLIENT_SECRET=your_client_secret
 # Encryption key for secure data storage
 ENCRYPTION_KEY=your_32_byte_hex_key
 
-# Flask secret key
+# Flask secret key (required for user sessions)
 SECRET_KEY=your_secret_key_here
 ```
 
 **Security Note**: Never commit `.env` to version control.
+
+### 3. Create Your User Account
+
+**IMPORTANT**: Public registration is disabled for security. This is a personal app where all authenticated users share the same feed data.
+
+Create your user account using the CLI tool:
+
+```bash
+python create_user.py
+```
+
+You'll be prompted for:
+
+- Email address
+- Name (optional)
+- Password (must be 8+ characters with uppercase, lowercase, and a number)
+
+### 4. Get API Credentials
 
 ### 3. Get API Credentials
 

@@ -70,6 +70,7 @@ def index():
     return feed()
 
 
+@bp.route("/feed")
 @login_required
 def feed():
     """

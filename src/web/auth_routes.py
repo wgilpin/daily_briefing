@@ -23,125 +23,25 @@ def login_page():
 @bp.route("/register", methods=["GET"])
 def register_page():
     """Render the registration page."""
-    if current_user.is_authenticated:
-        return redirect(url_for("main.index"))
-    return render_template("auth/register.html")
+    # Disable public registration - this is a personal app
+    return render_template("auth/disabled.html",
+                         message="Registration is disabled. This is a private application."), 403
 
 
 @bp.route("/register", methods=["POST"])
 def register():
     """Handle user registration.
 
-    Request JSON:
-        {
-            "email": "user@example.com",
-            "password": "SecurePass123",
-            "name": "John Doe"  // optional
-        }
-
-    Returns:
-        201: User created successfully
-        400: Validation error
-        409: Email already exists
+    DISABLED: Public registration is disabled for security.
+    Use the CLI command to create accounts instead: python create_user.py
     """
-
-    try:
-        data = request.get_json()
-        reg_request = UserRegistrationRequest(**data)
-
-        conn = get_connection()
-
-        # Check if email already exists
-        existing_user = get_user_by_email(conn, reg_request.email)
-        if existing_user:
-            return jsonify({
-                "success": False,
-                "error": {
-                    "code": "USER_EXISTS",
-                    "message": "An account with this email already exists"
-                }
-            }), 409
-
-        # Create user
-        user_id = create_user(
-            conn,
-            reg_request.email,
-            reg_request.password,
-            reg_request.name
-        )
-
-        # Auto-login after registration
-        from src.auth.service import get_user_by_id
-
-        user_dict = get_user_by_id(conn, user_id)
-
-        class User:
-            def __init__(self, user_dict):
-                self.id = user_dict["id"]
-                self.email = user_dict["email"]
-                self.name = user_dict["name"]
-                self.is_active = user_dict["is_active"]
-
-            def is_authenticated(self):
-                return True
-
-            def is_anonymous(self):
-                return False
-
-            def get_id(self):
-                return str(self.id)
-
-        user = User(user_dict)
-        login_user(user)
-
-        return jsonify({
-            "success": True,
-            "data": {
-                "user": {
-                    "id": user_id,
-                    "email": reg_request.email,
-                    "name": reg_request.name
-                },
-                "message": "Account created successfully"
-            }
-        }), 201
-
-    except ValidationError as e:
-        # Extract just the friendly error message from Pydantic validation
-        errors = e.errors()
-        if errors:
-            # Get the first error's message (the friendly one we wrote)
-            error_msg = errors[0].get('msg', '')
-            # Remove "Value error, " prefix that Pydantic adds
-            if error_msg.startswith('Value error, '):
-                error_msg = error_msg[13:]
-        else:
-            error_msg = "Please check your input"
-
-        return jsonify({
-            "success": False,
-            "error": {
-                "code": "VALIDATION_ERROR",
-                "message": error_msg
-            }
-        }), 400
-    except ValueError as e:
-        return jsonify({
-            "success": False,
-            "error": {
-                "code": "VALIDATION_ERROR",
-                "message": str(e)
-            }
-        }), 400
-    except Exception as e:
-        current_app.logger.error(f"Registration error: {e}")
-        return jsonify({
-            "success": False,
-            "error": {
-                "code": "SERVER_ERROR",
-                "message": "An error occurred during registration"
-            }
-        }), 500
+    return jsonify({
+        "success": False,
+        "error": {
+            "code": "REGISTRATION_DISABLED",
+            "message": "Public registration is disabled. This is a private application."
+        }
+    }), 403
 
 
 @bp.route("/login", methods=["POST"])
