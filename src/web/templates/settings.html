@@ -12,6 +12,7 @@
     <div class="source-configs">
         {% include "partials/zotero_config.html" %}
         {% include "partials/newsletter_config.html" %}
+        {% include "partials/topic_exclusion_config.html" %}
     </div>
 </div>
 
@@ -347,6 +348,65 @@
 }
 
 .status.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.exclusion-list {
+    list-style: none;
+    padding: 0;
+    margin: 15px 0;
+}
+
+.exclusion-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.exclusion-item .topic-text {
+    font-family: monospace;
+    color: #2c3e50;
+    flex: 1;
+}
+
+.no-exclusions {
+    color: #666;
+    font-style: italic;
+    padding: 10px;
+    text-align: center;
+}
+
+.btn-small {
+    padding: 5px 12px;
+    font-size: 0.85em;
+    border-radius: 3px;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-danger {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c0392b;
+}
+
+.alert {
+    padding: 10px 15px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.alert-error {
     background-color: #f8d7da;
     color: #721c24;
     border: 1px solid #f5c6cb;

@@ -1,8 +1,8 @@
 <!--
 Sync Impact Report:
-- Version change: 0.0.0 → 1.0.0 (initial constitution)
-- Modified principles: N/A (new file)
-- Added sections: Core Principles (7), Technology Stack, Development Workflow, Governance
+- Version change: 1.0.0 → 1.1.0 (configuration storage clarification)
+- Modified principles: I. Technology Stack (added config file exception)
+- Added sections: Configuration file criteria
 - Removed sections: N/A
 - Templates requiring updates:
   - .specify/templates/plan-template.md ✅ (compatible)
@@ -17,7 +17,16 @@ Sync Impact Report:
 
 ### I. Technology Stack
 
-Python 3.13+ with uv for package management. Coolify PostgreSQL for all persistent storage. Coolify platform-level authentication for access control. No local SQLite or file-based storage in production.
+Python 3.13+ with uv for package management. Coolify PostgreSQL for all persistent user data and application state. Coolify platform-level authentication for access control.
+
+**Configuration files** (settings, prompts, system parameters) MAY use JSON files when:
+
+- Data is user-editable configuration, not transactional data
+- Changes are infrequent (configuration updates, not user actions)
+- File size remains small (<1MB)
+- Atomic write operations are used
+
+No local SQLite or file-based storage for user data in production.
 
 ### II. Strong Typing (NON-NEGOTIABLE)
 
@@ -108,4 +117,4 @@ This constitution supersedes all other development practices for this project. A
 
 All code reviews and implementations MUST verify compliance with these principles. Violations require justification documented in code comments.
 
-**Version**: 1.0.0 | **Ratified**: 2026-01-30 | **Last Amended**: 2026-01-30
+**Version**: 1.1.0 | **Ratified**: 2026-01-30 | **Last Amended**: 2026-02-03

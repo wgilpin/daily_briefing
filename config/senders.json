@@ -15,5 +15,6 @@
   "models": {
     "parsing": "gemini-2.5-flash",
     "consolidation": "gemini-2.5-flash"
-  }
+  },
+  "excluded_topics": []
 }

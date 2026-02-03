@@ -655,3 +655,181 @@ def _render_feed_item(item: FeedItem) -> str:
         {metadata_html}
     </article>
     """
+
+
+# =============================================================================
+# Topic Exclusion Routes
+# =============================================================================
+
+
+@bp.route("/settings/exclusions/list", methods=["GET"])
+@login_required
+def list_exclusions():
+    """
+    Render the current list of excluded topics as HTML partial.
+
+    Returns:
+        HTML: List of excluded topics with remove buttons
+    """
+    try:
+        from src.newsletter.config import load_config
+
+        config = load_config()
+
+        if not config.excluded_topics:
+            return """
+            <ul id="exclusion-list" class="exclusion-list">
+                <li class="no-exclusions">No topics excluded</li>
+            </ul>
+            """
+
+        # Build list items
+        items_html = []
+        for index, topic in enumerate(config.excluded_topics):
+            items_html.append(f"""
+            <li class="exclusion-item" data-index="{index}">
+                <span class="topic-text">{topic}</span>
+                <button
+                    class="btn-small btn-danger"
+                    hx-delete="/settings/exclusions/delete/{index}"
+                    hx-target="closest li"
+                    hx-swap="outerHTML"
+                    hx-confirm="Remove '{topic}' from exclusions?">
+                    Remove
+                </button>
+            </li>
+            """)
+
+        return f"""
+        <ul id="exclusion-list" class="exclusion-list">
+            {''.join(items_html)}
+        </ul>
+        """
+
+    except Exception as e:
+        logger.error(f"Error loading exclusions: {e}")
+        return """
+        <div class="alert alert-error" role="alert">
+            Error loading exclusions. Please try refreshing the page.
+        </div>
+        """, 500
+
+
+@bp.route("/settings/exclusions/add", methods=["POST"])
+@login_required
+def add_exclusion():
+    """
+    Add a new topic to the exclusion list.
+
+    Form Parameters:
+        topic: Topic to exclude (1-100 characters)
+
+    Returns:
+        HTML: New list item fragment or error message
+    """
+    try:
+        from src.newsletter.config import load_config, save_config
+
+        topic = request.form.get("topic", "").strip()
+
+        # Validation
+        if not topic:
+            return """
+            <div class="alert alert-error" role="alert">
+                Topic cannot be empty
+            </div>
+            """, 400
+
+        if len(topic) > 100:
+            return """
+            <div class="alert alert-error" role="alert">
+                Topic exceeds 100 character limit
+            </div>
+            """, 400
+
+        # Load config
+        config = load_config()
+
+        # Check limit
+        if len(config.excluded_topics) >= 50:
+            return """
+            <div class="alert alert-error" role="alert">
+                Maximum 50 topics allowed. Please remove some before adding more.
+            </div>
+            """, 409
+
+        # Add topic
+        config.excluded_topics.append(topic)
+        save_config(config)
+
+        # Return new list item
+        index = len(config.excluded_topics) - 1
+        return f"""
+        <li class="exclusion-item" data-index="{index}">
+            <span class="topic-text">{topic}</span>
+            <button
+                class="btn-small btn-danger"
+                hx-delete="/settings/exclusions/delete/{index}"
+                hx-target="closest li"
+                hx-swap="outerHTML"
+                hx-confirm="Remove '{topic}' from exclusions?">
+                Remove
+            </button>
+        </li>
+        """
+
+    except ValueError as e:
+        logger.error(f"Validation error adding exclusion: {e}")
+        return f"""
+        <div class="alert alert-error" role="alert">
+            {str(e)}
+        </div>
+        """, 400
+    except Exception as e:
+        logger.error(f"Error adding exclusion: {e}")
+        return """
+        <div class="alert alert-error" role="alert">
+            Error adding topic. Please try again.
+        </div>
+        """, 500
+
+
+@bp.route("/settings/exclusions/delete/<int:index>", methods=["DELETE"])
+@login_required
+def delete_exclusion(index: int):
+    """
+    Remove a topic from the exclusion list by index.
+
+    Path Parameters:
+        index: Zero-based index of topic to remove
+
+    Returns:
+        HTML: Empty response (HTMX removes element) or error message
+    """
+    try:
+        from src.newsletter.config import load_config, save_config
+
+        config = load_config()
+
+        # Validate index
+        if index < 0 or index >= len(config.excluded_topics):
+            return f"""
+            <div class="alert alert-error" role="alert">
+                Topic not found at index {index}
+            </div>
+            """, 404
+
+        # Remove topic
+        config.excluded_topics.pop(index)
+        save_config(config)
+
+        # Return empty response - HTMX will remove the element
+        return "", 200
+
+    except Exception as e:
+        logger.error(f"Error deleting exclusion at index {index}: {e}")
+        return """
+        <div class="alert alert-error" role="alert">
+            Error removing topic. Please try again.
+        </div>
+        """, 500

@@ -3,6 +3,8 @@
 Auto-generated from all feature plans. Last updated: 2026-02-02
 
 ## Active Technologies
+- Python 3.13+ + Flask, HTMX, Google Gemini (google-genai), Pydantic (005-topic-exclusion)
+- PostgreSQL (Coolify) + config/senders.json (file-based configuration) (005-topic-exclusion)
 
 - Python 3.13+ (existing project requirement) (004-user-login)
 
@@ -22,6 +24,7 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.13+ (existing project requirement): Follow standard conventions
 
 ## Recent Changes
+- 005-topic-exclusion: Added Python 3.13+ + Flask, HTMX, Google Gemini (google-genai), Pydantic
 
 - 004-user-login: Added Python 3.13+ (existing project requirement)
 

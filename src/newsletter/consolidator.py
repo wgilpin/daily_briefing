@@ -6,19 +6,25 @@ import google.genai as genai
 
 
 def consolidate_newsletters(
-    parsed_items: list[dict], prompt: str, llm_client: genai.Client, model_name: str
+    parsed_items: list[dict],
+    prompt: str,
+    llm_client: genai.Client,
+    model_name: str,
+    excluded_topics: list[str] | None = None
 ) -> str:
     """
     Generate consolidated newsletter from parsed items using LLM.
 
     Calls LLM API with the provided prompt and parsed items to generate
-    a consolidated newsletter in markdown format.
+    a consolidated newsletter in markdown format. Optionally filters out
+    items matching excluded topics.
 
     Args:
         parsed_items: List of parsed newsletter items (from multiple sources)
         prompt: Consolidation prompt template
         llm_client: LLM API client (Gemini Client)
         model_name: Gemini model to use (e.g., "gemini-2.5-flash")
+        excluded_topics: Optional list of topics to exclude from output
 
     Returns:
         str: Consolidated newsletter in markdown format
@@ -35,6 +41,7 @@ def consolidate_newsletters(
         - Returns markdown string suitable for reading
         - Content is well-formatted with headings and sections
         - All items from input are represented in output (or fallback format if LLM fails)
+        - Items matching excluded topics are filtered out
     """
     if not prompt or not prompt.strip():
         raise ValueError("prompt must be non-empty")
@@ -43,11 +50,23 @@ def consolidate_newsletters(
     if not parsed_items:
         return "# Newsletter\n\nNo items to consolidate."
 
+    # Build exclusion instructions if topics are provided
+    exclusion_instructions = ""
+    if excluded_topics:
+        topics_formatted = "\n".join(f"- {topic}" for topic in excluded_topics)
+        exclusion_instructions = f"""CRITICAL INSTRUCTION - HIGHEST PRIORITY:
+You MUST exclude any content related to the following topics:
+{topics_formatted}
+
+Do NOT include these topics in your consolidated output. Skip items matching these topics entirely.
+
+"""
+
     # Format items as JSON for LLM
     items_json = json.dumps(parsed_items, indent=2, ensure_ascii=False)
 
-    # Build the full prompt with items
-    full_prompt = f"{prompt}\n\nItems to consolidate:\n\n{items_json}\n\nGenerate a well-formatted markdown newsletter that consolidates all these items."
+    # Build the full prompt with optional exclusions prepended
+    full_prompt = f"{exclusion_instructions}{prompt}\n\nItems to consolidate:\n\n{items_json}\n\nGenerate a well-formatted markdown newsletter that consolidates all these items."
 
     try:
         # Call Gemini API using the new google.genai package
