@@ -63,6 +63,7 @@ def collect_newsletter_emails(
     try:
         config = load_config(config_path)
         senders = config.get("senders", {})
+        days_lookback = config.get("days_lookback", 30)
     except Exception as e:
         result["errors"].append(f"Failed to load configuration: {str(e)}")
         return result
@@ -96,7 +97,7 @@ def collect_newsletter_emails(
 
     # Collect emails
     try:
-        emails = collect_emails(service, sender_emails, processed_ids)
+        emails = collect_emails(service, sender_emails, processed_ids, days_lookback)
     except Exception as e:
         result["errors"].append(f"Failed to collect emails: {str(e)}")
         return result
@@ -249,7 +250,7 @@ def _parse_single_newsletter(
         ).fetchone()
         
         if email_status and email_status[0] == "parsed":
-            logger.info(f"[{index}/{total_count}] ✓ Skipping {message_id} - already parsed")
+            logger.info(f"[{index}/{total_count}] Skipping {message_id} - already parsed")
             db_conn.close()
             return (message_id, True, None, [])
         
@@ -278,9 +279,9 @@ def _parse_single_newsletter(
                 parsing_prompt = sender_config["parsing_prompt"]
         
         # Parse with LLM
-        logger.info(f"[{index}/{total_count}] 🤖 Calling {model_name} for {message_id}...")
+        logger.info(f"[{index}/{total_count}] Calling {model_name} for {message_id}...")
         parsed_items = parse_newsletter(markdown_content, parsing_prompt, llm_client, model_name)
-        logger.info(f"[{index}/{total_count}] ✓ Extracted {len(parsed_items)} items from {message_id}")
+        logger.info(f"[{index}/{total_count}] Extracted {len(parsed_items)} items from {message_id}")
         
         # Save parsed items
         if parsed_items:
@@ -294,7 +295,7 @@ def _parse_single_newsletter(
         
     except Exception as e:
         error_msg = f"Error parsing {message_id}: {str(e)}"
-        logger.error(f"[{index}/{total_count}] ✗ {error_msg}")
+        logger.error(f"[{index}/{total_count}] {error_msg}")
         try:
             track_email_processed(
                 db_path, message_id, None, "error", error_message=error_msg
@@ -393,7 +394,7 @@ def parse_newsletters(
         return result
 
     total_files = len(markdown_files)
-    logger.info(f"📚 Found {total_files} markdown files to process (using {max_workers} parallel workers, model: {parsing_model})")
+    logger.info(f"Found {total_files} markdown files to process (using {max_workers} parallel workers, model: {parsing_model})")
     
     emails_parsed = 0
     errors = []
@@ -445,7 +446,7 @@ def parse_newsletters(
         if not errors:
             result["errors"].append("No newsletters could be parsed. Check GEMINI_API_KEY and model availability.")
     
-    logger.info(f"✅ Parsing complete: {emails_parsed} newsletters parsed, {len(errors)} errors")
+    logger.info(f"Parsing complete: {emails_parsed} newsletters parsed, {len(errors)} errors")
 
     # Apply retention policy after successful processing
     try:
@@ -454,7 +455,7 @@ def parse_newsletters(
             data_dirs = [emails_dir, markdown_dir, parsed_dir]
             deleted_count = apply_retention_policy(db_path, data_dirs, retention_limit)
             if deleted_count > 0:
-                logger.info(f"🗑️ Retention policy applied: {deleted_count} old record(s) deleted")
+                logger.info(f"Retention policy applied: {deleted_count} old record(s) deleted")
     except Exception as e:
         logger.warning(f"Failed to apply retention policy: {str(e)}")
         # Don't fail the whole operation if retention policy fails

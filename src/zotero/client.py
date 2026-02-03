@@ -74,14 +74,15 @@ def fetch_recent_items(client: zotero.Zotero, days: int) -> list[ZoteroItem]:
 
     try:
         logger.info("Fetching items added since %s (last %d day(s))", cutoff_iso, days)
-        # Note: Zotero API's 'since' parameter expects a version number, not a timestamp
-        # Strategy: Fetch ALL items sorted by dateAdded, then filter to only those added in time window
-        # Use everything() to get all items (handles pagination automatically)
-        all_items = client.everything(client.items(sort="dateAdded", direction="desc"))
-        
-        # Filter items by dateAdded (client-side filtering) - only items added in time window
+
+        # Fetch items sorted by dateAdded descending with a reasonable limit
+        # This avoids fetching the entire library for large collections
+        limit = 100  # Fetch up to 100 most recent items
+        items = client.items(sort="dateAdded", direction="desc", limit=limit)
+
+        # Filter items by dateAdded - only items added in time window
         filtered_items = []
-        for item in all_items:
+        for item in items:
             date_added_str = item.get("data", {}).get("dateAdded", "")
             if date_added_str:
                 try:
@@ -96,8 +97,8 @@ def fetch_recent_items(client: zotero.Zotero, days: int) -> list[ZoteroItem]:
                 except (ValueError, TypeError):
                     # Skip items with invalid dateAdded
                     continue
-        
-        logger.info("Fetched %d item(s) from Zotero API, %d item(s) added in last %d day(s)", len(all_items), len(filtered_items), days)
+
+        logger.info("Fetched %d item(s) from Zotero API, %d item(s) added in last %d day(s)", len(items), len(filtered_items), days)
         
         # Return items (will be sorted by publication date in sort_and_limit_items)
         return filtered_items

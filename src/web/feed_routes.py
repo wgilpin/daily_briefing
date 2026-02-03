@@ -228,8 +228,21 @@ def api_refresh():
         HTML: HTMX response fragment with refresh status
     """
     try:
+        # Use print for immediate output to debug console
+        print("=" * 60, flush=True)
+        print("REFRESH TRIGGERED - Starting feed refresh", flush=True)
+        print("=" * 60, flush=True)
+        logger.info("=" * 60)
+        logger.info("REFRESH TRIGGERED - Starting feed refresh")
+        logger.info("=" * 60)
+
         service = get_feed_service_with_sources()
+        print(f"Registered sources: {list(service.sources.keys())}", flush=True)
+        logger.info(f"Registered sources: {list(service.sources.keys())}")
+
         result = service.refresh_all()
+        print(f"Refresh result: {result}", flush=True)
+        logger.info(f"Refresh result: {result}")
 
         if result["success"]:
             # Build status message
@@ -275,11 +288,20 @@ def api_refresh():
             """
 
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error("=" * 60)
         logger.error(f"Error during refresh: {e}")
+        logger.error(error_traceback)
+        logger.error("=" * 60)
         return f"""
         <div id="refresh-status" class="status error">
             <p><strong>Refresh failed</strong></p>
-            <p>Error: {str(e)[:100]}</p>
+            <p>Error: {str(e)}</p>
+            <details>
+                <summary>Technical details</summary>
+                <pre style="font-size: 10px; overflow: auto;">{error_traceback}</pre>
+            </details>
         </div>
         """
 

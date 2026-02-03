@@ -8,6 +8,7 @@
   },
   "consolidation_prompt": "Create a consolidated newsletter digest from these items.\n\nGroup similar topics together and create a well-formatted markdown document.\nOrganize by topic and include all relevant information.\nUse clear headings and sections to make it easy to read.",
   "retention_limit": 100,
+  "days_lookback": 30,
   "max_workers": 10,
   "default_parsing_prompt": "Extract ONLY the top 3 most important and substantial articles from this newsletter.\n\nFocus on:\n- Full articles with meaningful titles (not \"Note\", \"Quote\", \"Link\", or similar generic labels)\n- Articles that have detailed content and analysis\n- Prefer articles with links to full posts\n\nIgnore:\n- Brief notes, quotes, or short mentions\n- Sidebar content\n- Generic items like \"Note:\", \"Quote:\", or \"Link:\"\n\nReturn a JSON array with up to 3 items, each containing: date, title, summary, link (optional).\nIf there are fewer than 3 substantial articles, return only what's available.",
   "default_consolidation_prompt": "Create a consolidated newsletter digest from these items.\n\nGroup similar topics together and create a well-formatted markdown document.\nOrganize by topic and include all relevant information.\nUse clear headings and sections to make it easy to read.",

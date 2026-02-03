@@ -3,12 +3,20 @@
 Wraps existing src/newsletter/ functionality to implement FeedSource protocol.
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from src.models.feed_item import FeedItem
 from src.models.source import NewsletterConfig
+from src.newsletter.email_collector import (
+    collect_newsletter_emails,
+    convert_emails_to_markdown,
+    parse_newsletters,
+)
 from src.newsletter.storage import get_all_parsed_items
+
+logger = logging.getLogger(__name__)
 
 
 class NewsletterSource:
@@ -35,20 +43,78 @@ class NewsletterSource:
         self._db_path = db_path
 
     def fetch_items(self) -> list[FeedItem]:
-        """Fetch newsletter items from storage.
+        """Fetch newsletter items from Gmail and storage.
+
+        Executes the full newsletter collection pipeline:
+        1. Collect new emails from Gmail
+        2. Convert emails to markdown
+        3. Parse newsletters with LLM
+        4. Return all parsed items as FeedItems
 
         Returns:
             List of FeedItem objects from newsletter storage
         """
-        # Fetch from internal method (allows mocking in tests)
+        # Execute newsletter collection pipeline
+        logger.info("Starting newsletter collection pipeline")
+
+        # Step 1: Collect emails from Gmail
+        logger.info("Step 1: Collecting emails from Gmail")
+        collect_result = collect_newsletter_emails(
+            config_path="config/senders.json",
+            credentials_path="config/credentials.json",
+            tokens_path="data/tokens.json",
+            data_dir="data/emails",
+            db_path=self._db_path,
+        )
+
+        if collect_result["errors"]:
+            for error in collect_result["errors"]:
+                logger.warning(f"Email collection: {error}")
+
+        logger.info(f"Collected {collect_result['emails_collected']} new emails")
+
+        # Step 2: Convert emails to markdown
+        logger.info("Step 2: Converting emails to markdown")
+        convert_result = convert_emails_to_markdown(
+            emails_dir="data/emails",
+            markdown_dir="data/markdown",
+            db_path=self._db_path,
+        )
+
+        if convert_result["errors"]:
+            for error in convert_result["errors"]:
+                logger.warning(f"Markdown conversion: {error}")
+
+        logger.info(f"Converted {convert_result['emails_converted']} emails to markdown")
+
+        # Step 3: Parse newsletters with LLM
+        logger.info("Step 3: Parsing newsletters with LLM")
+        parse_result = parse_newsletters(
+            markdown_dir="data/markdown",
+            parsed_dir="data/parsed",
+            db_path=self._db_path,
+            config_path="config/senders.json",
+            emails_dir="data/emails",
+        )
+
+        if parse_result["errors"]:
+            for error in parse_result["errors"]:
+                logger.warning(f"Newsletter parsing: {error}")
+
+        logger.info(f"Parsed {parse_result['emails_parsed']} newsletters")
+
+        # Step 4: Fetch all items from storage
         raw_items = self._fetch_from_storage()
 
         # Convert to FeedItem format
-        return [
+        feed_items = [
             item
             for item in (self._to_feed_item(raw, idx) for idx, raw in enumerate(raw_items))
             if item is not None
         ]
+
+        logger.info(f"Returning {len(feed_items)} newsletter items")
+        return feed_items
 
     def _fetch_from_storage(self) -> list[dict[str, Any]]:
         """Fetch raw items from storage.

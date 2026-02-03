@@ -90,6 +90,7 @@ def collect_emails(
     credentials: Credentials,
     sender_emails: list[str],
     processed_ids: set[str],
+    days_lookback: int = 30,
 ) -> list[dict]:
     """
     Collect emails from Gmail for specified senders.
@@ -101,6 +102,7 @@ def collect_emails(
         credentials: Authenticated Gmail credentials
         sender_emails: List of sender email addresses to collect from
         processed_ids: Set of message IDs already processed (to avoid duplicates)
+        days_lookback: Number of days to look back for emails (default: 30)
 
     Returns:
         list[dict]: List of email dictionaries with keys:
@@ -125,10 +127,15 @@ def collect_emails(
     # Build Gmail service
     service = build("gmail", "v1", credentials=credentials)
 
-    # Build query to filter by senders
-    # Gmail query format: from:email1 OR from:email2
+    # Calculate date for lookback filter
+    from datetime import datetime, timedelta
+    cutoff_date = datetime.now() - timedelta(days=days_lookback)
+    date_filter = cutoff_date.strftime("%Y/%m/%d")
+
+    # Build query to filter by senders and date
+    # Gmail query format: from:email1 OR from:email2 after:YYYY/MM/DD
     query_parts = [f"from:{email}" for email in sender_emails]
-    query = " OR ".join(query_parts)
+    query = f"({' OR '.join(query_parts)}) after:{date_filter}"
 
     # Get list of messages
     results = (

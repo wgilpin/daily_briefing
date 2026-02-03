@@ -4,7 +4,7 @@
         {
             "label": "start-docker-db",
             "type": "shell",
-            "command": "docker ps -q --filter publish=5432 | xargs -r docker stop && docker compose -f docker-compose.dev.yml down && docker compose -f docker-compose.dev.yml up -d",
+            "command": "docker ps -q --filter publish=5000 | xargs -r docker stop; docker ps -q --filter publish=5432 | xargs -r docker stop; docker compose -f docker-compose.dev.yml down; docker compose down; docker compose -f docker-compose.dev.yml up -d",
             "presentation": {
                 "reveal": "always",
                 "panel": "new"
