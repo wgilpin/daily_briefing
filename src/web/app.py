@@ -7,11 +7,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask
+from flask_login import LoginManager
 
 # Load environment variables from .env file
 load_dotenv()
 
-from src.newsletter.storage import init_database, init_data_directories
+from src.newsletter.storage import init_database, init_data_directories  # noqa: E402
 
 
 def run_migrations() -> None:
@@ -67,6 +68,10 @@ def create_app() -> Flask:
 
     # Basic configuration
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+    app.config["PERMANENT_SESSION_LIFETIME"] = 30 * 24 * 60 * 60  # 30 days in seconds
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_ENV") == "production"
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
     # Configure logging
     logging.basicConfig(
@@ -90,6 +95,43 @@ def create_app() -> Flask:
         init_database(db_path)
         init_data_directories()
 
+    # Initialize Flask-Login
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = "auth.login"
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        """Load user by ID for Flask-Login."""
+        from src.auth.service import get_user_by_id
+        from src.db.connection import get_connection
+
+        try:
+            conn = get_connection()
+            user_dict = get_user_by_id(conn, int(user_id))
+            if user_dict:
+                # Create a simple user object for Flask-Login
+                class User:
+                    def __init__(self, user_dict):
+                        self.id = user_dict["id"]
+                        self.email = user_dict["email"]
+                        self.name = user_dict["name"]
+                        self.is_active = user_dict["is_active"]
+
+                    def is_authenticated(self):
+                        return True
+
+                    def is_anonymous(self):
+                        return False
+
+                    def get_id(self):
+                        return str(self.id)
+
+                return User(user_dict)
+        except Exception:
+            pass
+        return None
+
     # Register error handlers
     @app.errorhandler(404)
     def not_found(error):
@@ -104,8 +146,10 @@ def create_app() -> Flask:
 
     # Register blueprints
     from src.web.feed_routes import bp as main_bp
+    from src.web.auth_routes import bp as auth_bp
 
     app.register_blueprint(main_bp)
+    app.register_blueprint(auth_bp)
 
     return app
 

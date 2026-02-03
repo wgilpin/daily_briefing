@@ -24,7 +24,9 @@
       "Bash(\"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" compose logs app --tail 50)",
       "Bash(\"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" compose logs app --tail 100)",
       "Bash(\"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" compose logs:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff check:*)"
     ],
     "deny": [],
     "ask": []

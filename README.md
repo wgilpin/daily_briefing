@@ -4,6 +4,7 @@ A unified web application that aggregates content from multiple sources (Zotero 
 
 ## Features
 
+- **User Authentication**: Secure password-based login to protect your personal feed
 - **Unified Feed**: Single view combining items from all configured sources
 - **Multiple Sources**:
   - Zotero library additions (research papers)
@@ -52,13 +53,29 @@ GOOGLE_CLIENT_SECRET=your_client_secret
 # Encryption key for secure data storage
 ENCRYPTION_KEY=your_32_byte_hex_key
 
-# Flask secret key
+# Flask secret key (required for user sessions)
 SECRET_KEY=your_secret_key_here
 ```
 
 **Security Note**: Never commit `.env` to version control.
 
-### 3. Get API Credentials
+### 3. Create Your User Account
+
+**IMPORTANT**: Public registration is disabled for security. This is a personal app where all authenticated users share the same feed data.
+
+Create your user account using the CLI tool:
+
+```bash
+python create_user.py
+```
+
+You'll be prompted for:
+
+- Email address
+- Name (optional)
+- Password (must be 8+ characters with uppercase, lowercase, and a number)
+
+### 4. Get API Credentials
 
 #### Zotero API Credentials (Optional)
 
@@ -78,7 +95,7 @@ SECRET_KEY=your_secret_key_here
 1. Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Add it to your `.env` file
 
-### 4. Configure Newsletter Senders (Optional)
+### 5. Configure Newsletter Senders (Optional)
 
 If using the newsletter source, configure sender email addresses in `config/senders.json`:
 
@@ -113,9 +130,11 @@ The application will start on `http://127.0.0.1:5000`.
 
 ### First-Time Setup
 
-1. Open the web UI in your browser
-2. Navigate to Settings to configure your sources
-3. Click "Refresh Feed" to fetch initial content
+1. Create your user account: `python create_user.py`
+2. Open the web UI in your browser
+3. Log in with your credentials
+4. Navigate to Settings to configure your sources
+5. Click "Refresh Feed" to fetch initial content
 
 ## Docker Deployment
 
@@ -163,9 +182,16 @@ The app will be available at `http://localhost:5000`.
 
 ## Usage
 
+### Authentication
+
+- All routes require authentication to access your personal feed
+- Public registration is disabled for security
+- To create additional user accounts, use: `python create_user.py`
+- Sessions last 30 days with "Remember Me" enabled
+
 ### Viewing the Feed
 
-- Open the web UI in your browser
+- Log in to access the web UI
 - The main page shows a unified feed of all items from configured sources
 - Items are sorted chronologically (most recent first)
 - Each item shows its source type, title, date, and summary
@@ -189,18 +215,29 @@ The app will be available at `http://localhost:5000`.
 ### Filtering (Future)
 
 Future versions will support:
+
 - Filter by source type (Zotero only, newsletters only, etc.)
 - Search by keyword
 - Date range filtering
 
 ## API Endpoints
 
-- `GET /` - Main feed page
-- `GET /api/feed/items` - Get feed items (HTMX)
-- `POST /api/refresh` - Trigger feed refresh
+### Authentication Routes
+
+- `GET /auth/login` - Login page
+- `POST /auth/login` - Handle login (with brute-force protection)
+- `POST /auth/logout` - Logout user
+- `GET /auth/register` - Shows "Registration Disabled" message
+
+### Feed Routes (Protected)
+
+- `GET /` - Main feed page (requires login)
+- `GET /feed` - Feed view (requires login)
+- `GET /api/feed/items` - Get feed items (requires login)
+- `POST /api/refresh` - Trigger feed refresh (requires login)
 - `GET /api/health` - Health check for monitoring
-- `POST /api/settings/zotero` - Configure Zotero source
-- `POST /api/settings/newsletter` - Configure newsletter source
+- `POST /api/settings/zotero` - Configure Zotero source (requires login)
+- `POST /api/settings/newsletter` - Configure newsletter source (requires login)
 
 ## Development
 
@@ -221,6 +258,7 @@ uv run pytest --cov=src --cov-report=html
 
 ```text
 src/
+├── auth/            # User authentication (password hashing, sessions, models)
 ├── db/              # Database migrations and connection
 ├── models/          # Data models (FeedItem, etc.)
 ├── newsletter/      # Newsletter collection and parsing
@@ -234,7 +272,10 @@ config/              # Configuration files (OAuth credentials, senders)
 data/                # Local data storage (SQLite for newsletters)
 tests/
 ├── unit/            # Unit tests
+│   └── auth/        # Authentication tests (24 tests)
 └── integration/     # Integration tests
+
+create_user.py       # CLI tool to create user accounts
 ```
 
 ### Adding New Sources
@@ -249,11 +290,19 @@ See [specs/003-unified-feed-app/](specs/003-unified-feed-app/) for detailed arch
 
 ## Troubleshooting
 
+### Authentication Issues
+
+- **Cannot create account via web**: Public registration is disabled. Use `python create_user.py`
+- **Login fails**: Check password requirements (8+ chars, uppercase, lowercase, number)
+- **Brute-force protection**: Failed logins trigger a 5-second delay
+- **Session expired**: Sessions last 30 days. Log in again if expired
+
 ### Database Connection Issues
 
 - Verify `DATABASE_URL` is correctly formatted
 - Ensure PostgreSQL is running and accessible
 - Check database migrations ran successfully (check logs)
+- Database includes users, sessions, and password_reset_tokens tables
 
 ### Zotero Source Not Working
 

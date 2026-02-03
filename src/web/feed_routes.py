@@ -5,6 +5,7 @@ import os
 from typing import Optional
 
 from flask import Blueprint, make_response, render_template, request
+from flask_login import login_required
 
 from src.models.feed_item import FeedItem
 from src.models.source import NewsletterConfig, ZoteroConfig
@@ -63,6 +64,14 @@ def get_feed_service() -> FeedService:
 
 
 @bp.route("/")
+@login_required
+def index():
+    """Redirect to feed page."""
+    return feed()
+
+
+@bp.route("/feed")
+@login_required
 def feed():
     """
     Display unified feed homepage.
@@ -130,6 +139,7 @@ def feed():
 
 
 @bp.route("/api/feed")
+@login_required
 def api_feed():
     """
     Get feed items as HTMX partial.
@@ -206,6 +216,7 @@ def api_feed():
 
 
 @bp.route("/api/refresh", methods=["POST"])
+@login_required
 def api_refresh():
     """
     Trigger refresh of all feed sources.
@@ -324,6 +335,7 @@ def api_health():
 
 
 @bp.route("/settings")
+@login_required
 def settings():
     """
     Display settings page.
@@ -376,6 +388,7 @@ def settings():
 
 
 @bp.route("/api/settings/zotero", methods=["POST"])
+@login_required
 def api_settings_zotero():
     """
     Update Zotero source settings.
@@ -434,6 +447,7 @@ def api_settings_zotero():
 
 
 @bp.route("/api/settings/newsletter", methods=["POST"])
+@login_required
 def api_settings_newsletter():
     """
     Update newsletter source settings.
@@ -480,6 +494,7 @@ def api_settings_newsletter():
 
 
 @bp.route("/api/settings/newsletter/senders", methods=["POST"])
+@login_required
 def api_settings_newsletter_sender():
     """
     Add a new newsletter sender.
@@ -531,6 +546,7 @@ def api_settings_newsletter_sender():
 
 
 @bp.route("/api/settings/newsletter/senders/<email>", methods=["DELETE"])
+@login_required
 def api_settings_delete_sender(email: str):
     """
     Delete a newsletter sender.
