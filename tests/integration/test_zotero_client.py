@@ -52,22 +52,19 @@ def test_fetch_recent_items_success():
         },
     ]
     
-    # Mock items() and everything() - everything() wraps items() and returns all items
+    # Mock items() to return the items
     mock_client.items.return_value = mock_items
-    mock_client.everything.return_value = mock_items  # everything() returns the same items
-    
+
     # Call function
     result = fetch_recent_items(mock_client, days)
-    
-    # Verify client.items was called once, sorted by dateAdded
+
+    # Verify client.items was called once with correct parameters
     mock_client.items.assert_called_once()
     call_args = mock_client.items.call_args
-    assert call_args.kwargs["sort"] == "dateAdded"  # Sort by dateAdded to get recent additions
+    assert call_args.kwargs["sort"] == "dateAdded"
     assert call_args.kwargs["direction"] == "desc"
-    
-    # Verify everything() was called with the items() result
-    mock_client.everything.assert_called_once()
-    
+    assert call_args.kwargs["limit"] == 100
+
     # Verify result - should only include items within the date range
     assert len(result) == 2, "Should filter out old items"
     assert result[0]["key"] == "item1"

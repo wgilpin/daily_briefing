@@ -16,5 +16,8 @@
     "parsing": "gemini-2.5-flash",
     "consolidation": "gemini-2.5-flash"
   },
-  "excluded_topics": []
+  "excluded_topics": [
+    "SQL databases",
+    "test"
+  ]
 }

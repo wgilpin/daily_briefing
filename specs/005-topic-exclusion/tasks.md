@@ -83,8 +83,8 @@ This is a single project with paths at repository root:
 - [X] T028 [US1] Register exclusions blueprint in src/web/app.py
 - [X] T029 [US1] Create HTML partial template src/web/templates/partials/topic_exclusion_config.html
 - [X] T030 [US1] Update src/web/templates/settings.html to include topic_exclusion_config.html partial
-- [ ] T031 [US1] Run integration tests to verify routes: pytest tests/integration/web/test_exclusion_routes.py -v
-- [ ] T032 [US1] Run type checker on web routes: mypy src/web/
+- [X] T031 [US1] Run integration tests to verify routes: pytest tests/integration/web/test_exclusion_routes.py -v
+- [X] T032 [US1] Run type checker on web routes: mypy src/web/
 - [ ] T033 [US1] Manual test: Open settings UI in browser and verify add/delete functionality
 
 **Checkpoint**: At this point, User Story 1 should be fully functional - users can manage exclusion list via UI
@@ -113,8 +113,8 @@ This is a single project with paths at repository root:
 - [X] T042 [US2] Inject exclusion instructions at beginning of prompt in src/newsletter/consolidator.py
 - [X] T043 [US2] Handle empty result case when all items filtered by exclusions in src/newsletter/consolidator.py
 - [X] T044 [US2] Locate consolidate_newsletters invocation in src/newsletter/ or src/web/ and update to pass excluded_topics from loaded config
-- [ ] T045 [US2] Run unit tests to verify consolidator logic: pytest tests/unit/newsletter/test_consolidator.py -v
-- [ ] T046 [US2] Run type checker on consolidator: mypy src/newsletter/consolidator.py
+- [X] T045 [US2] Run unit tests to verify consolidator logic: pytest tests/unit/newsletter/test_consolidator.py -v
+- [X] T046 [US2] Run type checker on consolidator: mypy src/newsletter/consolidator.py
 - [ ] T047 [US2] Manual test: Configure exclusions, trigger consolidation, verify excluded content is filtered
 
 **Checkpoint**: All user stories should now be independently functional - complete feature working end-to-end

@@ -244,6 +244,55 @@ def api_refresh():
         print(f"Refresh result: {result}", flush=True)
         logger.info(f"Refresh result: {result}")
 
+        # CONSOLIDATE NEWSLETTERS WITH EXCLUSIONS
+        consolidation_result = None
+        if result["success"] and result.get("sources", {}).get("newsletter"):
+            try:
+                from src.newsletter.config import load_config
+                from src.newsletter.consolidator import consolidate_newsletters
+                from src.newsletter.storage import get_all_parsed_items, save_consolidated_digest
+                import google.genai as genai
+                import os
+
+                logger.info("Starting newsletter consolidation with exclusions...")
+
+                # Load config to get exclusions and prompts
+                config = load_config()
+                logger.info(f"Loaded config with {len(config.excluded_topics)} excluded topics: {config.excluded_topics}")
+
+                # Get all parsed newsletter items
+                parsed_items = get_all_parsed_items("data/newsletter_aggregator.db")
+                logger.info(f"Retrieved {len(parsed_items)} parsed items for consolidation")
+
+                if parsed_items:
+                    # Create LLM client
+                    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+                    if not gemini_api_key:
+                        raise ValueError("GEMINI_API_KEY not set")
+
+                    llm_client = genai.Client(api_key=gemini_api_key)
+
+                    # Consolidate with exclusions
+                    consolidated_markdown = consolidate_newsletters(
+                        parsed_items=parsed_items,
+                        prompt=config.consolidation_prompt,
+                        llm_client=llm_client,
+                        model_name=config.models["consolidation"],
+                        excluded_topics=config.excluded_topics  # PASS EXCLUSIONS HERE
+                    )
+
+                    # Save consolidated digest
+                    output_path = save_consolidated_digest(consolidated_markdown, "data/output")
+                    logger.info(f"Saved consolidated newsletter to {output_path}")
+                    consolidation_result = {"success": True, "path": output_path}
+                else:
+                    logger.info("No parsed items to consolidate")
+                    consolidation_result = {"success": False, "reason": "no_items"}
+
+            except Exception as e:
+                logger.error(f"Error during consolidation: {e}")
+                consolidation_result = {"success": False, "error": str(e)}
+
         if result["success"]:
             # Build status message
             source_messages = []
@@ -269,11 +318,22 @@ def api_refresh():
                 status_class = "success"
                 status_text = "Refresh complete"
 
+            # Add consolidation status if it ran
+            consolidation_message = ""
+            if consolidation_result:
+                if consolidation_result.get("success"):
+                    consolidation_message = f"<p>✓ Newsletter consolidated (saved to {consolidation_result.get('path')})</p>"
+                elif consolidation_result.get("reason") == "no_items":
+                    consolidation_message = "<p>ℹ No newsletter items to consolidate</p>"
+                elif consolidation_result.get("error"):
+                    consolidation_message = f"<p>⚠ Consolidation failed: {consolidation_result.get('error')}</p>"
+
             response = make_response(f"""
             <div id="refresh-status" class="status {status_class}">
                 <p><strong>{status_text}</strong></p>
                 <p>{'. '.join(source_messages)}</p>
                 <p>Total: {result['total_items']} items fetched</p>
+                {consolidation_message}
             </div>
             """)
             # Trigger feed reload after status is shown

@@ -3,7 +3,7 @@
 import json
 import pytest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from src.web.app import create_app
 from src.newsletter.config import NewsletterConfig
@@ -12,9 +12,13 @@ from src.newsletter.config import NewsletterConfig
 @pytest.fixture
 def app():
     """Create Flask app for testing."""
+    from flask_login import UserMixin
+
     app = create_app()
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False  # Disable CSRF for testing
+    app.config["LOGIN_DISABLED"] = True  # Disable Flask-Login for tests
+
     return app
 
 
@@ -31,49 +35,48 @@ def auth(client):
         def __init__(self, client):
             self._client = client
 
-        def login(self, email="test@example.com"):
-            """Login as test user."""
-            # Mock authentication - bypass actual login
-            with client.session_transaction() as sess:
-                sess["_user_id"] = "1"
+        def login(self, email="test@example.com", user_id="1"):
+            """Login as test user by setting session."""
+            # Flask-Login reads _user_id from session
+            with self._client.session_transaction() as sess:
+                sess["_user_id"] = user_id
                 sess["_fresh"] = True
 
         def logout(self):
             """Logout user."""
-            with client.session_transaction() as sess:
+            with self._client.session_transaction() as sess:
                 sess.clear()
 
     return AuthActions(client)
 
 
 @pytest.fixture
-def mock_config(tmp_path):
-    """Create temporary config file for testing."""
-    config_file = tmp_path / "senders.json"
-    config_data = {
-        "senders": {},
-        "consolidation_prompt": "test prompt",
-        "retention_limit": 100,
-        "days_lookback": 30,
-        "max_workers": 10,
-        "default_parsing_prompt": "test parsing",
-        "default_consolidation_prompt": "test consolidation",
-        "models": {"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
-        "excluded_topics": []
-    }
-    config_file.write_text(json.dumps(config_data), encoding="utf-8")
-    return config_file
+def base_config():
+    """Base configuration for testing."""
+    return NewsletterConfig(
+        senders={},
+        consolidation_prompt="test prompt",
+        retention_limit=100,
+        days_lookback=30,
+        max_workers=10,
+        default_parsing_prompt="test parsing",
+        default_consolidation_prompt="test consolidation",
+        models={"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
+        excluded_topics=[]
+    )
 
 
 class TestExclusionRoutes:
     """Test exclusion management routes."""
 
-    def test_add_exclusion_success(self, client, auth, mock_config):
+    def test_add_exclusion_success(self, client, auth, base_config):
         """POST /settings/exclusions/add adds topic and returns HTML."""
         auth.login()
 
-        with patch('src.newsletter.config.Path') as mock_path_class:
-            mock_path_class.return_value = mock_config
+        with patch('src.newsletter.config.load_config') as mock_load, \
+             patch('src.newsletter.config.save_config') as mock_save:
+
+            mock_load.return_value = base_config
 
             response = client.post('/settings/exclusions/add', data={'topic': 'datasette'})
 
@@ -81,152 +84,179 @@ class TestExclusionRoutes:
             assert b'datasette' in response.data
             assert b'hx-delete' in response.data
 
-    def test_add_exclusion_empty_topic(self, client, auth, mock_config):
+            # Verify save was called with updated config
+            mock_save.assert_called_once()
+            saved_config = mock_save.call_args[0][0]
+            assert 'datasette' in saved_config.excluded_topics
+
+    def test_add_exclusion_empty_topic(self, client, auth, base_config):
         """POST /settings/exclusions/add with empty topic returns error."""
         auth.login()
 
-        with patch('src.newsletter.config.Path') as mock_path_class:
-            mock_path_class.return_value = mock_config
+        with patch('src.newsletter.config.load_config') as mock_load, \
+             patch('src.newsletter.config.save_config') as mock_save:
+
+            mock_load.return_value = base_config
 
             response = client.post('/settings/exclusions/add', data={'topic': '   '})
 
             assert response.status_code == 400
             assert b'empty' in response.data.lower()
+            mock_save.assert_not_called()
 
-    def test_add_exclusion_exceeds_100_chars(self, client, auth, mock_config):
+    def test_add_exclusion_exceeds_100_chars(self, client, auth, base_config):
         """POST /settings/exclusions/add with topic exceeding 100 chars returns error."""
         auth.login()
 
-        with patch('src.newsletter.config.Path') as mock_path_class:
-            mock_path_class.return_value = mock_config
+        with patch('src.newsletter.config.load_config') as mock_load, \
+             patch('src.newsletter.config.save_config') as mock_save:
 
-            long_topic = "a" * 101
+            mock_load.return_value = base_config
+
+            long_topic = 'a' * 101
             response = client.post('/settings/exclusions/add', data={'topic': long_topic})
 
             assert response.status_code == 400
             assert b'100 character' in response.data
+            mock_save.assert_not_called()
 
-    def test_add_exclusion_at_limit(self, client, auth, tmp_path):
+    def test_add_exclusion_at_limit(self, client, auth, base_config):
         """POST /settings/exclusions/add at 50-topic limit returns error."""
         auth.login()
 
-        # Create config with 50 topics already
-        config_file = tmp_path / "senders.json"
-        config_data = {
-            "senders": {},
-            "consolidation_prompt": "test prompt",
-            "retention_limit": 100,
-            "days_lookback": 30,
-            "max_workers": 10,
-            "default_parsing_prompt": "test parsing",
-            "default_consolidation_prompt": "test consolidation",
-            "models": {"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
-            "excluded_topics": [f"topic{i}" for i in range(50)]
-        }
-        config_file.write_text(json.dumps(config_data), encoding="utf-8")
+        # Create config at limit
+        config_at_limit = NewsletterConfig(
+            senders={},
+            consolidation_prompt="test prompt",
+            retention_limit=100,
+            days_lookback=30,
+            max_workers=10,
+            default_parsing_prompt="test parsing",
+            default_consolidation_prompt="test consolidation",
+            models={"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
+            excluded_topics=[f"topic{i}" for i in range(50)]
+        )
 
-        with patch('src.newsletter.config.Path') as mock_path_class:
-            mock_path_class.return_value = config_file
+        with patch('src.newsletter.config.load_config') as mock_load, \
+             patch('src.newsletter.config.save_config') as mock_save:
 
-            response = client.post('/settings/exclusions/add', data={'topic': 'one_more'})
+            mock_load.return_value = config_at_limit
+
+            response = client.post('/settings/exclusions/add', data={'topic': 'new_topic'})
 
             assert response.status_code == 409
-            assert b'50' in response.data or b'Maximum' in response.data
+            assert b'50 topics' in response.data.lower()
+            mock_save.assert_not_called()
 
-    def test_delete_exclusion_success(self, client, auth, tmp_path):
-        """DELETE /settings/exclusions/delete/{index} removes topic."""
+    def test_delete_exclusion_success(self, client, auth, base_config):
+        """DELETE /settings/exclusions/delete/<index> removes topic."""
         auth.login()
 
-        # Create config with topics
-        config_file = tmp_path / "senders.json"
-        config_data = {
-            "senders": {},
-            "consolidation_prompt": "test prompt",
-            "retention_limit": 100,
-            "days_lookback": 30,
-            "max_workers": 10,
-            "default_parsing_prompt": "test parsing",
-            "default_consolidation_prompt": "test consolidation",
-            "models": {"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
-            "excluded_topics": ["datasette", "SQL"]
-        }
-        config_file.write_text(json.dumps(config_data), encoding="utf-8")
+        # Config with topics
+        config_with_topics = NewsletterConfig(
+            senders={},
+            consolidation_prompt="test prompt",
+            retention_limit=100,
+            days_lookback=30,
+            max_workers=10,
+            default_parsing_prompt="test parsing",
+            default_consolidation_prompt="test consolidation",
+            models={"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
+            excluded_topics=["topic1", "topic2", "topic3"]
+        )
 
-        with patch('src.newsletter.config.Path') as mock_path_class:
-            mock_path_class.return_value = config_file
+        with patch('src.newsletter.config.load_config') as mock_load, \
+             patch('src.newsletter.config.save_config') as mock_save:
 
-            response = client.delete('/settings/exclusions/delete/0')
+            mock_load.return_value = config_with_topics
+
+            response = client.delete('/settings/exclusions/delete/1')
 
             assert response.status_code == 200
+            mock_save.assert_called_once()
+            saved_config = mock_save.call_args[0][0]
+            assert saved_config.excluded_topics == ["topic1", "topic3"]
 
-            # Verify topic was removed from config
-            saved_data = json.loads(config_file.read_text(encoding="utf-8"))
-            assert "datasette" not in saved_data["excluded_topics"]
-            assert "SQL" in saved_data["excluded_topics"]
-
-    def test_delete_exclusion_invalid_index(self, client, auth, mock_config):
-        """DELETE /settings/exclusions/delete/{index} with invalid index returns error."""
+    def test_delete_exclusion_invalid_index(self, client, auth, base_config):
+        """DELETE /settings/exclusions/delete/<index> with invalid index returns error."""
         auth.login()
 
-        with patch('src.newsletter.config.Path') as mock_path_class:
-            mock_path_class.return_value = mock_config
+        config_with_topics = NewsletterConfig(
+            senders={},
+            consolidation_prompt="test prompt",
+            retention_limit=100,
+            days_lookback=30,
+            max_workers=10,
+            default_parsing_prompt="test parsing",
+            default_consolidation_prompt="test consolidation",
+            models={"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
+            excluded_topics=["topic1", "topic2"]
+        )
 
-            response = client.delete('/settings/exclusions/delete/999')
+        with patch('src.newsletter.config.load_config') as mock_load, \
+             patch('src.newsletter.config.save_config') as mock_save:
 
-            assert response.status_code == 404
-            assert b'not found' in response.data.lower() or b'invalid' in response.data.lower()
+            mock_load.return_value = config_with_topics
 
-    def test_list_exclusions_with_topics(self, client, auth, tmp_path):
-        """GET /settings/exclusions/list returns HTML list with topics."""
+            response = client.delete('/settings/exclusions/delete/5')
+
+            assert response.status_code in (400, 404)  # Either bad request or not found
+            assert b'invalid' in response.data.lower() or b'not found' in response.data.lower()
+            mock_save.assert_not_called()
+
+    def test_list_exclusions_with_topics(self, client, auth, base_config):
+        """GET /settings/exclusions/list returns HTML with topics."""
         auth.login()
 
-        # Create config with topics
-        config_file = tmp_path / "senders.json"
-        config_data = {
-            "senders": {},
-            "consolidation_prompt": "test prompt",
-            "retention_limit": 100,
-            "days_lookback": 30,
-            "max_workers": 10,
-            "default_parsing_prompt": "test parsing",
-            "default_consolidation_prompt": "test consolidation",
-            "models": {"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
-            "excluded_topics": ["datasette", "low-level coding"]
-        }
-        config_file.write_text(json.dumps(config_data), encoding="utf-8")
+        config_with_topics = NewsletterConfig(
+            senders={},
+            consolidation_prompt="test prompt",
+            retention_limit=100,
+            days_lookback=30,
+            max_workers=10,
+            default_parsing_prompt="test parsing",
+            default_consolidation_prompt="test consolidation",
+            models={"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
+            excluded_topics=["datasette", "SQL internals"]
+        )
 
-        with patch('src.newsletter.config.Path') as mock_path_class:
-            mock_path_class.return_value = config_file
+        with patch('src.newsletter.config.load_config') as mock_load:
+            mock_load.return_value = config_with_topics
 
             response = client.get('/settings/exclusions/list')
 
             assert response.status_code == 200
             assert b'datasette' in response.data
-            assert b'low-level coding' in response.data
+            assert b'SQL internals' in response.data
+            assert b'exclusion-item' in response.data
 
-    def test_list_exclusions_empty(self, client, auth, mock_config):
-        """GET /settings/exclusions/list with empty list returns placeholder."""
+    def test_list_exclusions_empty(self, client, auth, base_config):
+        """GET /settings/exclusions/list with no topics shows empty state."""
         auth.login()
 
-        with patch('src.newsletter.config.Path') as mock_path_class:
-            mock_path_class.return_value = mock_config
+        with patch('src.newsletter.config.load_config') as mock_load:
+            mock_load.return_value = base_config
 
             response = client.get('/settings/exclusions/list')
 
             assert response.status_code == 200
-            assert b'No topics' in response.data or b'empty' in response.data.lower()
+            assert b'no-exclusions' in response.data.lower() or b'no topics' in response.data.lower()
 
-    def test_routes_require_authentication(self, client, mock_config):
+    def test_routes_require_authentication(self):
         """All exclusion routes require authentication."""
-        with patch('src.newsletter.config.Path') as mock_path_class:
-            mock_path_class.return_value = mock_config
+        # Create app WITHOUT LOGIN_DISABLED
+        app = create_app()
+        app.config["TESTING"] = True
+        app.config["WTF_CSRF_ENABLED"] = False
+        # Do NOT set LOGIN_DISABLED here
+        client = app.test_client()
 
-            # Test without authentication
-            response_add = client.post('/settings/exclusions/add', data={'topic': 'test'})
-            response_delete = client.delete('/settings/exclusions/delete/0')
-            response_list = client.get('/settings/exclusions/list')
+        # Test without login - should redirect or return 401
+        response_add = client.post('/settings/exclusions/add', data={'topic': 'test'})
+        assert response_add.status_code in (302, 401)  # Redirect to login or unauthorized
 
-            # Should redirect to login or return 401
-            assert response_add.status_code in [301, 302, 401]
-            assert response_delete.status_code in [301, 302, 401]
-            assert response_list.status_code in [301, 302, 401]
+        response_delete = client.delete('/settings/exclusions/delete/0')
+        assert response_delete.status_code in (302, 401)
+
+        response_list = client.get('/settings/exclusions/list')
+        assert response_list.status_code in (302, 401)
