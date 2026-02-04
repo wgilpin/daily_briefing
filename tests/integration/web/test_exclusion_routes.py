@@ -14,12 +14,14 @@ def app():
     """Create Flask app for testing."""
     from flask_login import UserMixin
 
-    app = create_app()
-    app.config["TESTING"] = True
-    app.config["WTF_CSRF_ENABLED"] = False  # Disable CSRF for testing
-    app.config["LOGIN_DISABLED"] = True  # Disable Flask-Login for tests
+    # Mock database connection pool initialization
+    with patch("src.db.connection.initialize_pool"):
+        app = create_app()
+        app.config["TESTING"] = True
+        app.config["WTF_CSRF_ENABLED"] = False  # Disable CSRF for testing
+        app.config["LOGIN_DISABLED"] = True  # Disable Flask-Login for tests
 
-    return app
+        return app
 
 
 @pytest.fixture
@@ -245,18 +247,19 @@ class TestExclusionRoutes:
     def test_routes_require_authentication(self):
         """All exclusion routes require authentication."""
         # Create app WITHOUT LOGIN_DISABLED
-        app = create_app()
-        app.config["TESTING"] = True
-        app.config["WTF_CSRF_ENABLED"] = False
-        # Do NOT set LOGIN_DISABLED here
-        client = app.test_client()
+        with patch("src.db.connection.initialize_pool"):
+            app = create_app()
+            app.config["TESTING"] = True
+            app.config["WTF_CSRF_ENABLED"] = False
+            # Do NOT set LOGIN_DISABLED here
+            client = app.test_client()
 
-        # Test without login - should redirect or return 401
-        response_add = client.post('/settings/exclusions/add', data={'topic': 'test'})
-        assert response_add.status_code in (302, 401)  # Redirect to login or unauthorized
+            # Test without login - should redirect or return 401
+            response_add = client.post('/settings/exclusions/add', data={'topic': 'test'})
+            assert response_add.status_code in (302, 401)  # Redirect to login or unauthorized
 
-        response_delete = client.delete('/settings/exclusions/delete/0')
-        assert response_delete.status_code in (302, 401)
+            response_delete = client.delete('/settings/exclusions/delete/0')
+            assert response_delete.status_code in (302, 401)
 
-        response_list = client.get('/settings/exclusions/list')
-        assert response_list.status_code in (302, 401)
+            response_list = client.get('/settings/exclusions/list')
+            assert response_list.status_code in (302, 401)

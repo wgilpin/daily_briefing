@@ -1,14 +1,66 @@
 """LLM-based newsletter parser for newsletter aggregator."""
 
+import base64
 import json
 import os
 from typing import Optional
+from urllib.parse import urlparse
 
 import google.genai as genai
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+
+def decode_tracking_url(url: str) -> str:
+    """
+    Decode email tracking redirect URLs to extract the real destination.
+
+    Handles common tracking services like customeriomail.com that embed
+    the real URL in base64-encoded JSON.
+
+    Args:
+        url: Tracking URL (e.g., from customeriomail.com)
+
+    Returns:
+        str: Real destination URL, or original URL if decoding fails
+    """
+    if not url:
+        return url
+
+    try:
+        parsed = urlparse(url)
+
+        # Handle customeriomail.com tracking URLs
+        # Format: https://e.customeriomail.com/e/c/BASE64_JSON/hash
+        if 'customeriomail.com' in parsed.netloc and '/e/c/' in parsed.path:
+            # Extract base64 part (between /e/c/ and next /)
+            path_parts = parsed.path.split('/e/c/')
+            if len(path_parts) > 1:
+                base64_part = path_parts[1].split('/')[0]
+
+                # Decode using URL-safe base64 (handles - and _ characters)
+                # Add padding if needed
+                padding = len(base64_part) % 4
+                if padding:
+                    base64_part += '=' * (4 - padding)
+
+                decoded_bytes = base64.urlsafe_b64decode(base64_part)
+                decoded_str = decoded_bytes.decode('utf-8', errors='ignore')
+
+                # Parse as JSON
+                tracking_data = json.loads(decoded_str)
+
+                # Extract href field
+                if 'href' in tracking_data:
+                    return tracking_data['href']
+
+    except Exception:
+        # If any decoding fails, return original URL
+        pass
+
+    return url
 
 
 def create_llm_client(api_key: Optional[str] = None) -> genai.Client:
@@ -145,12 +197,16 @@ def parse_newsletter(
                 if "title" not in item or not item["title"]:
                     continue
 
+                # Get link and decode if it's a tracking URL
+                raw_link = item.get("link")
+                decoded_link = decode_tracking_url(raw_link) if raw_link else None
+
                 # Build validated item with required and optional fields
                 validated_item = {
                     "title": str(item.get("title", "")).strip(),
                     "date": item.get("date") if item.get("date") else None,
                     "summary": item.get("summary") if item.get("summary") else None,
-                    "link": item.get("link") if item.get("link") else None,
+                    "link": decoded_link if decoded_link else None,
                 }
 
                 validated_items.append(validated_item)

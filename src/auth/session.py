@@ -1,7 +1,7 @@
 """Session management for user authentication."""
 
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 
@@ -20,7 +20,7 @@ def create_session(
         Session ID string
     """
     session_id = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(days=30)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
 
     with conn.cursor() as cur:
         cur.execute(
@@ -62,7 +62,7 @@ def validate_session(conn, session_id: str) -> Optional[int]:
         user_id, expires_at = result
 
         # Check if session is expired
-        if expires_at < datetime.utcnow():
+        if expires_at < datetime.now(timezone.utc):
             return None
 
         # Update last_accessed_at

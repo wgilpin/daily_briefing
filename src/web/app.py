@@ -12,7 +12,7 @@ from flask_login import LoginManager
 # Load environment variables from .env file
 load_dotenv()
 
-from src.newsletter.storage import init_database, init_data_directories  # noqa: E402
+from src.newsletter.storage import init_data_directories  # noqa: E402
 
 
 def run_migrations() -> None:
@@ -36,18 +36,18 @@ def run_migrations() -> None:
     try:
         from src.db.connection import get_connection
 
-        conn = get_connection()
         migration_files = sorted(migrations_dir.glob("*.sql"))
 
-        for migration_file in migration_files:
-            logger.info(f"Running migration: {migration_file.name}")
-            sql = migration_file.read_text()
+        with get_connection() as conn:
+            for migration_file in migration_files:
+                logger.info(f"Running migration: {migration_file.name}")
+                sql = migration_file.read_text()
 
-            with conn.cursor() as cursor:
-                cursor.execute(sql)
-            conn.commit()
+                with conn.cursor() as cursor:
+                    cursor.execute(sql)
+                conn.commit()
 
-        logger.info(f"Successfully ran {len(migration_files)} migration(s)")
+            logger.info(f"Successfully ran {len(migration_files)} migration(s)")
 
     except Exception as e:
         logger.error(f"Error running migrations: {e}")
@@ -112,12 +112,14 @@ def create_app() -> Flask:
 
     # Initialize databases on startup
     with app.app_context():
+        # Initialize connection pool before running migrations
+        from src.db.connection import initialize_pool
+        initialize_pool()
+
         # Run PostgreSQL migrations (for unified feed)
         run_migrations()
 
-        # Initialize SQLite database (for newsletter legacy)
-        db_path = "data/newsletter_aggregator.db"
-        init_database(db_path)
+        # Initialize file system directories
         init_data_directories()
 
     # Initialize Flask-Login
@@ -132,27 +134,27 @@ def create_app() -> Flask:
         from src.db.connection import get_connection
 
         try:
-            conn = get_connection()
-            user_dict = get_user_by_id(conn, int(user_id))
-            if user_dict:
-                # Create a simple user object for Flask-Login
-                class User:
-                    def __init__(self, user_dict):
-                        self.id = user_dict["id"]
-                        self.email = user_dict["email"]
-                        self.name = user_dict["name"]
-                        self.is_active = user_dict["is_active"]
+            with get_connection() as conn:
+                user_dict = get_user_by_id(conn, int(user_id))
+                if user_dict:
+                    # Create a simple user object for Flask-Login
+                    class User:
+                        def __init__(self, user_dict):
+                            self.id = user_dict["id"]
+                            self.email = user_dict["email"]
+                            self.name = user_dict["name"]
+                            self.is_active = user_dict["is_active"]
 
-                    def is_authenticated(self):
-                        return True
+                        def is_authenticated(self):
+                            return True
 
-                    def is_anonymous(self):
-                        return False
+                        def is_anonymous(self):
+                            return False
 
-                    def get_id(self):
-                        return str(self.id)
+                        def get_id(self):
+                            return str(self.id)
 
-                return User(user_dict)
+                    return User(user_dict)
         except Exception:
             pass
         return None

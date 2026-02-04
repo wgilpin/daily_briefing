@@ -282,7 +282,7 @@ def api_refresh():
                 # Get recently parsed newsletter items (from the refresh period)
                 # Use the same days_lookback value used for refresh, or default to 1
                 consolidation_days = days_lookback if days_lookback is not None else 1
-                parsed_items = get_recent_parsed_items("data/newsletter_aggregator.db", days=consolidation_days)
+                parsed_items = get_recent_parsed_items(None, days=consolidation_days)
                 logger.info(f"Retrieved {len(parsed_items)} parsed items from last {consolidation_days} day(s) for consolidation")
 
                 if parsed_items:
@@ -409,12 +409,12 @@ def api_health():
     # Check database connection
     try:
         from src.db.connection import get_connection
-        conn = get_connection()
-        if conn and not conn.closed:
-            health["database"] = "connected"
-        else:
-            health["database"] = "disconnected"
-            health["status"] = "unhealthy"
+        with get_connection() as conn:
+            if conn and not conn.closed:
+                health["database"] = "connected"
+            else:
+                health["database"] = "disconnected"
+                health["status"] = "unhealthy"
     except Exception as e:
         health["database"] = "disconnected"
         health["error"] = str(e)[:100]
@@ -443,52 +443,31 @@ def clear_feed_items():
     """
     Clear all feed items from the database.
 
-    Deletes all items from the PostgreSQL feed_items table and clears
-    the SQLite newsletter storage. This does not affect user accounts,
-    settings, or OAuth tokens - only cached feed items.
+    Deletes all items from the PostgreSQL feed_items and processed_emails tables.
+    This does not affect user accounts, settings, or OAuth tokens - only cached
+    feed items and email processing history.
 
     Returns:
         HTML: Success or error message for HTMX display
     """
     try:
-        import sqlite3
         from src.db.connection import get_connection
 
-        # Clear PostgreSQL feed_items
-        conn = get_connection()
-        with conn.cursor() as cursor:
-            cursor.execute("DELETE FROM feed_items")
-            pg_deleted_count = cursor.rowcount
-        conn.commit()
+        # Clear PostgreSQL feed_items and processed_emails
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM feed_items")
+                feed_items_count = cursor.rowcount
 
-        logger.info(f"Cleared {pg_deleted_count} feed items from PostgreSQL")
+                cursor.execute("DELETE FROM processed_emails")
+                emails_count = cursor.rowcount
+            conn.commit()
 
-        # Clear SQLite newsletter storage
-        sqlite_deleted_count = 0
-        try:
-            sqlite_conn = sqlite3.connect("data/newsletter_aggregator.db")
-            sqlite_cursor = sqlite_conn.cursor()
-
-            # Delete all newsletter items
-            sqlite_cursor.execute("DELETE FROM newsletter_items")
-            items_deleted = sqlite_cursor.rowcount
-
-            # Delete all processed email records
-            sqlite_cursor.execute("DELETE FROM processed_emails")
-            emails_deleted = sqlite_cursor.rowcount
-
-            sqlite_conn.commit()
-            sqlite_conn.close()
-
-            sqlite_deleted_count = items_deleted + emails_deleted
-            logger.info(f"Cleared {items_deleted} items and {emails_deleted} processed emails from SQLite")
-        except Exception as sqlite_error:
-            logger.warning(f"Failed to clear SQLite newsletter storage: {sqlite_error}")
+        logger.info(f"Cleared {feed_items_count} feed items and {emails_count} processed emails from PostgreSQL")
 
         return f"""
         <div class="status success">
-            Successfully deleted {pg_deleted_count} feed items from database
-            and cleared {sqlite_deleted_count} newsletter records.
+            Successfully deleted {feed_items_count} feed items and {emails_count} email records from database.
             <a href="/feed">Go to feed</a> to reload fresh data.
         </div>
         """
