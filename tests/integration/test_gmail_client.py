@@ -158,48 +158,31 @@ class TestCollectEmails:
         mock_service = MagicMock()
         mock_build.return_value = mock_service
 
-        # Mock messages list
+        # Mock messages list - only return msg1 for sender1@example.com
         mock_messages = MagicMock()
         mock_messages.list.return_value.execute.return_value = {
             "messages": [
                 {"id": "msg1"},
-                {"id": "msg2"},
             ]
         }
         mock_service.users.return_value.messages.return_value = mock_messages
 
-        # Mock individual message gets
+        # Mock individual message get
         def mock_get(userId, id, format):
-            if id == "msg1":
-                return Mock(
-                    execute=Mock(
-                        return_value={
-                            "id": "msg1",
-                            "payload": {
-                                "headers": [
-                                    {"name": "From", "value": "sender1@example.com"},
-                                    {"name": "Subject", "value": "Test 1"},
-                                ],
-                                "body": {"data": ""},
-                            },
-                        }
-                    )
+            return Mock(
+                execute=Mock(
+                    return_value={
+                        "id": "msg1",
+                        "payload": {
+                            "headers": [
+                                {"name": "From", "value": "sender1@example.com"},
+                                {"name": "Subject", "value": "Test 1"},
+                            ],
+                            "body": {"data": ""},
+                        },
+                    }
                 )
-            elif id == "msg2":
-                return Mock(
-                    execute=Mock(
-                        return_value={
-                            "id": "msg2",
-                            "payload": {
-                                "headers": [
-                                    {"name": "From", "value": "sender2@example.com"},
-                                    {"name": "Subject", "value": "Test 2"},
-                                ],
-                                "body": {"data": ""},
-                            },
-                        }
-                    )
-                )
+            )
 
         mock_messages.get = mock_get
 

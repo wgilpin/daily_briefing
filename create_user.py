@@ -4,8 +4,13 @@
 import getpass
 import sys
 
+from dotenv import load_dotenv
+
 from src.auth.service import create_user, get_user_by_email
 from src.db.connection import get_connection
+
+# Load environment variables at module level
+load_dotenv()
 
 
 def main():
@@ -34,21 +39,24 @@ def main():
 
     # Create user
     try:
-        conn = get_connection()
+        # Initialize connection pool
+        from src.db.connection import initialize_pool
+        initialize_pool()
 
-        # Check if user exists
-        existing = get_user_by_email(conn, email)
-        if existing:
-            print(f"Error: User with email '{email}' already exists")
-            sys.exit(1)
+        with get_connection() as conn:
+            # Check if user exists
+            existing = get_user_by_email(conn, email)
+            if existing:
+                print(f"Error: User with email '{email}' already exists")
+                sys.exit(1)
 
-        # Create the user
-        user_id = create_user(conn, email, password, name)
-        print(f"\n✓ User created successfully!")
-        print(f"  ID: {user_id}")
-        print(f"  Email: {email}")
-        if name:
-            print(f"  Name: {name}")
+            # Create the user
+            user_id = create_user(conn, email, password, name)
+            print("\n✓ User created successfully!")
+            print(f"  ID: {user_id}")
+            print(f"  Email: {email}")
+            if name:
+                print(f"  Name: {name}")
 
     except Exception as e:
         print(f"Error creating user: {e}")

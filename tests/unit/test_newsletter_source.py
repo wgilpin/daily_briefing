@@ -44,23 +44,44 @@ class TestNewsletterSource:
 
     @pytest.fixture
     def mock_pipeline(self, mock_parsed_items):
-        """Mock all pipeline functions."""
+        """Mock all pipeline functions and Repository."""
         with patch("src.sources.newsletter.collect_newsletter_emails") as mock_collect, \
              patch("src.sources.newsletter.convert_emails_to_markdown") as mock_convert, \
              patch("src.sources.newsletter.parse_newsletters") as mock_parse, \
-             patch("src.sources.newsletter.get_all_parsed_items") as mock_get_items:
+             patch("src.sources.newsletter.Repository") as mock_repo_class:
 
             # Setup mocks
             mock_collect.return_value = {"emails_collected": 2, "errors": []}
             mock_convert.return_value = {"emails_converted": 2, "errors": []}
             mock_parse.return_value = {"emails_parsed": 2, "errors": []}
-            mock_get_items.return_value = mock_parsed_items
+
+            # Mock Repository instance and methods
+            mock_repo = MagicMock()
+            mock_repo_class.return_value = mock_repo
+
+            # Convert mock_parsed_items to FeedItem objects for the "after" state
+            feed_items = []
+            for idx, item in enumerate(mock_parsed_items):
+                feed_items.append(FeedItem(
+                    id=f"newsletter:{idx}",
+                    source_type="newsletter",
+                    source_id=str(idx),
+                    title=item["title"],
+                    date=datetime.fromisoformat(item["date"]).replace(tzinfo=timezone.utc),
+                    summary=item.get("summary"),
+                    link=item.get("link"),
+                    metadata={"sender": item.get("sender", "")} if item.get("sender") else {},
+                    fetched_at=datetime.now(timezone.utc),
+                ))
+
+            # First call returns empty (before), second call returns items (after)
+            mock_repo.get_feed_items.side_effect = [[], feed_items]
 
             yield {
                 "collect": mock_collect,
                 "convert": mock_convert,
                 "parse": mock_parse,
-                "get_items": mock_get_items,
+                "repo": mock_repo,
             }
 
     def test_fetch_items_returns_feed_items(
@@ -106,13 +127,17 @@ class TestNewsletterSource:
         with patch("src.sources.newsletter.collect_newsletter_emails") as mock_collect, \
              patch("src.sources.newsletter.convert_emails_to_markdown") as mock_convert, \
              patch("src.sources.newsletter.parse_newsletters") as mock_parse, \
-             patch("src.sources.newsletter.get_all_parsed_items") as mock_get_items:
+             patch("src.sources.newsletter.Repository") as mock_repo_class:
 
             # Setup mocks
             mock_collect.return_value = {"emails_collected": 0, "errors": []}
             mock_convert.return_value = {"emails_converted": 0, "errors": []}
             mock_parse.return_value = {"emails_parsed": 0, "errors": []}
-            mock_get_items.return_value = []
+
+            # Mock Repository instance and methods
+            mock_repo = MagicMock()
+            mock_repo_class.return_value = mock_repo
+            mock_repo.get_feed_items.return_value = []
 
             from src.sources.newsletter import NewsletterSource
 
@@ -146,26 +171,32 @@ class TestNewsletterSource:
         self, newsletter_config: NewsletterConfig
     ) -> None:
         """Test that sender info is included in metadata."""
-        items_with_sender = [
-            {
-                "date": "2026-01-15",
-                "title": "Newsletter Item",
-                "summary": "Content",
-                "link": None,
-                "sender": "newsletter@example.com",
-            }
-        ]
+        feed_item_with_sender = FeedItem(
+            id="newsletter:test123",
+            source_type="newsletter",
+            source_id="test123",
+            title="Newsletter Item",
+            date=datetime(2026, 1, 15, tzinfo=timezone.utc),
+            summary="Content",
+            link=None,
+            metadata={"sender": "newsletter@example.com"},
+            fetched_at=datetime.now(timezone.utc),
+        )
 
         with patch("src.sources.newsletter.collect_newsletter_emails") as mock_collect, \
              patch("src.sources.newsletter.convert_emails_to_markdown") as mock_convert, \
              patch("src.sources.newsletter.parse_newsletters") as mock_parse, \
-             patch("src.sources.newsletter.get_all_parsed_items") as mock_get_items:
+             patch("src.sources.newsletter.Repository") as mock_repo_class:
 
             # Setup mocks
             mock_collect.return_value = {"emails_collected": 1, "errors": []}
             mock_convert.return_value = {"emails_converted": 1, "errors": []}
             mock_parse.return_value = {"emails_parsed": 1, "errors": []}
-            mock_get_items.return_value = items_with_sender
+
+            # Mock Repository instance and methods
+            mock_repo = MagicMock()
+            mock_repo_class.return_value = mock_repo
+            mock_repo.get_feed_items.side_effect = [[], [feed_item_with_sender]]
 
             from src.sources.newsletter import NewsletterSource
 

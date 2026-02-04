@@ -1,6 +1,6 @@
 """Unit tests for session management module."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 from src.auth.session import (
@@ -32,7 +32,7 @@ def test_validate_session_returns_user_id_for_valid_session():
     mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
 
     # Mock a valid session
-    future_time = datetime.utcnow() + timedelta(days=1)
+    future_time = datetime.now(timezone.utc) + timedelta(days=1)
     mock_cursor.fetchone.return_value = (123, future_time)
 
     user_id = validate_session(mock_conn, "valid_session_id")
@@ -48,7 +48,7 @@ def test_validate_session_returns_none_for_expired_session():
     mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
 
     # Mock an expired session
-    past_time = datetime.utcnow() - timedelta(days=1)
+    past_time = datetime.now(timezone.utc) - timedelta(days=1)
     mock_cursor.fetchone.return_value = (123, past_time)
 
     user_id = validate_session(mock_conn, "expired_session_id")

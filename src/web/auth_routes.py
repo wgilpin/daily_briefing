@@ -63,28 +63,27 @@ def login():
         data = request.get_json()
         login_request = UserLoginRequest(**data)
 
-        conn = get_connection()
+        with get_connection() as conn:
+            user_id = authenticate_user(conn, login_request.email, login_request.password)
 
-        user_id = authenticate_user(conn, login_request.email, login_request.password)
+            if not user_id:
+                # Add 5-second delay on failed login to prevent brute force
+                time.sleep(5)
+                return jsonify({
+                    "success": False,
+                    "error": {
+                        "code": "AUTH_FAILED",
+                        "message": "Invalid email or password"
+                    }
+                }), 401
 
-        if not user_id:
-            # Add 5-second delay on failed login to prevent brute force
-            time.sleep(5)
-            return jsonify({
-                "success": False,
-                "error": {
-                    "code": "AUTH_FAILED",
-                    "message": "Invalid email or password"
-                }
-            }), 401
+            # Update last login
+            update_last_login(conn, user_id)
 
-        # Update last login
-        update_last_login(conn, user_id)
+            # Load user and login
+            from src.auth.service import get_user_by_id
 
-        # Load user and login
-        from src.auth.service import get_user_by_id
-
-        user_dict = get_user_by_id(conn, user_id)
+            user_dict = get_user_by_id(conn, user_id)
 
         class User:
             def __init__(self, user_dict):

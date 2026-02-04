@@ -5,6 +5,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-02
 ## Active Technologies
 - Python 3.13+ + Flask, HTMX, Google Gemini (google-genai), Pydantic (005-topic-exclusion)
 - PostgreSQL (Coolify) + config/senders.json (file-based configuration) (005-topic-exclusion)
+- Python 3.13+ + psycopg2 (PostgreSQL driver), hashlib (SHA-256), existing Flask/HTMX stack (006-newsletter-db-consolidation)
+- PostgreSQL (Coolify) - existing feed_items table + new processed_emails table (006-newsletter-db-consolidation)
 
 - Python 3.13+ (existing project requirement) (004-user-login)
 
@@ -24,9 +26,47 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.13+ (existing project requirement): Follow standard conventions
 
 ## Recent Changes
-- 005-topic-exclusion: Added Python 3.13+ + Flask, HTMX, Google Gemini (google-genai), Pydantic
 
+- 006-newsletter-db-consolidation: Completed newsletter database consolidation - migrated from SQLite to PostgreSQL with thread-safe connection pooling, SHA-256 stable IDs, and comprehensive test coverage
+- 005-topic-exclusion: Added Python 3.13+ + Flask, HTMX, Google Gemini (google-genai), Pydantic
 - 004-user-login: Added Python 3.13+ (existing project requirement)
+
+## Newsletter Database Consolidation (006) - Implementation Notes
+
+**Completed**: 2026-02-04
+
+### Key Changes
+
+- **Removed SQLite**: All newsletter tracking now uses PostgreSQL (`processed_emails` and `feed_items` tables)
+- **Connection Pooling**: ThreadedConnectionPool (minconn=2, maxconn=10) with exponential backoff retry (1s/2s/4s)
+- **Stable IDs**: SHA-256 deterministic hashing replaces non-deterministic `hash()` - format: `newsletter:{16-char-hash}`
+- **Thread Safety**: Parallel newsletter parsing (max_workers=5) without connection errors
+- **Repository Pattern**: All database operations through `Repository` class with context managers
+
+### Files Modified
+
+- `src/db/connection.py` - Added connection pooling with retry logic and cleanup handlers
+- `src/db/repository.py` - Added email tracking methods (is_email_processed, get_processed_message_ids, track_email_processed, update_email_status)
+- `src/newsletter/storage.py` - Added get_recent_parsed_items() to query PostgreSQL (backward-compatible API), kept file operations
+- `src/newsletter/email_collector.py` - Uses Repository instead of SQLite
+- `src/sources/newsletter.py` - Fetches from PostgreSQL feed_items table
+- `src/web/app.py` - Calls initialize_pool() on startup
+- `src/web/feed_routes.py` - Uses context managers for all get_connection() calls
+- `src/web/auth_routes.py` - Uses context managers for all get_connection() calls
+- `tests/conftest.py` - Added context manager support to mock_db_connection fixture
+
+### Files Created
+
+- `src/db/migrations/003_newsletter_consolidation.sql` - PostgreSQL schema for processed_emails and migration_history
+- `src/models/newsletter_models.py` - Pydantic models (ProcessedEmail, ConnectionPoolConfig, etc.)
+- `src/newsletter/id_generation.py` - SHA-256 ID generation with normalization
+- Multiple test files for comprehensive coverage
+
+### Migration Notes
+
+- **No data migration implemented** - Existing SQLite data can be discarded
+- Fresh start recommended - just delete `data/newsletter_aggregator.db` if it exists
+- All new emails will be tracked in PostgreSQL from first run
 
 <!-- MANUAL ADDITIONS START -->
 

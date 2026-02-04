@@ -128,11 +128,18 @@ def sample_newsletter_config() -> NewsletterConfig:
 
 @pytest.fixture
 def mock_db_connection():
-    """Mock PostgreSQL database connection."""
+    """Mock PostgreSQL database connection with context manager support."""
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
+
+    # Support cursor() as context manager
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+    # Support get_connection() as context manager
+    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+    mock_conn.__exit__ = MagicMock(return_value=False)
+
     return mock_conn, mock_cursor
 
 

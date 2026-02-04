@@ -6,17 +6,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
 
+from src.db.repository import Repository
 from src.newsletter.gmail_client import authenticate_gmail, collect_emails
 from src.newsletter.markdown_converter import convert_to_markdown
 from src.newsletter.parser import create_llm_client, parse_newsletter
 from src.newsletter.storage import (
-    apply_retention_policy,
-    get_processed_message_ids,
-    insert_newsletter_items,
     save_email,
     save_markdown,
     save_parsed_items,
-    track_email_processed,
 )
 from src.utils.config import load_config
 
@@ -28,21 +25,19 @@ def collect_newsletter_emails(
     credentials_path: str = "config/credentials.json",
     tokens_path: str = "data/tokens.json",
     data_dir: str = "data/emails",
-    db_path: str = "data/newsletter_aggregator.db",
     days_lookback: Optional[int] = None,
 ) -> dict:
     """
     Collect newsletter emails from Gmail.
 
     Authenticates with Gmail API, retrieves emails from configured senders,
-    and saves them locally. Tracks processed emails in database.
+    and saves them locally. Tracks processed emails in PostgreSQL database.
 
     Args:
         config_path: Path to newsletter configuration file (default: config/senders.json)
         credentials_path: Path to Gmail OAuth credentials (default: config/credentials.json)
         tokens_path: Path to store OAuth tokens (default: data/tokens.json)
         data_dir: Directory to save email files (default: data/emails)
-        db_path: Path to SQLite database (default: data/newsletter_aggregator.db)
         days_lookback: Days to look back for emails (overrides config, default: from config or 30)
 
     Returns:
@@ -95,7 +90,8 @@ def collect_newsletter_emails(
 
     # Get already processed message IDs
     try:
-        processed_ids = get_processed_message_ids(db_path, sender_emails)
+        repo = Repository()
+        processed_ids = repo.get_processed_message_ids(sender_emails)
     except Exception as e:
         result["errors"].append(f"Failed to get processed message IDs: {str(e)}")
         return result
@@ -118,8 +114,7 @@ def collect_newsletter_emails(
             save_email(email, data_dir)
 
             # Track in database
-            track_email_processed(
-                db_path,
+            repo.track_email_processed(
                 email["message_id"],
                 email["sender"],
                 "collected",
@@ -141,7 +136,6 @@ def collect_newsletter_emails(
 def convert_emails_to_markdown(
     emails_dir: str = "data/emails",
     markdown_dir: str = "data/markdown",
-    db_path: str = "data/newsletter_aggregator.db",
 ) -> dict:
     """
     Convert collected email files to markdown format.
@@ -152,7 +146,6 @@ def convert_emails_to_markdown(
     Args:
         emails_dir: Directory containing email JSON files (default: data/emails)
         markdown_dir: Directory to save markdown files (default: data/markdown)
-        db_path: Path to SQLite database (default: data/newsletter_aggregator.db)
 
     Returns:
         dict: Result dictionary with keys:
@@ -186,6 +179,7 @@ def convert_emails_to_markdown(
         return result
 
     emails_converted = 0
+    repo = Repository()
 
     for email_file in email_files:
         message_id = email_file.stem
@@ -202,7 +196,7 @@ def convert_emails_to_markdown(
             save_markdown(message_id, markdown_content, markdown_dir)
 
             # Update status to converted
-            track_email_processed(db_path, message_id, email.get("sender"), "converted")
+            repo.track_email_processed(message_id, email.get("sender"), "converted")
 
             emails_converted += 1
 
@@ -225,13 +219,12 @@ def _parse_single_newsletter(
     default_parsing_prompt: str,
     model_name: str,
     parsed_dir: str,
-    db_path: str,
     total_count: int,
     index: int,
 ) -> tuple[str, bool, str, list]:
     """
     Parse a single newsletter file.
-    
+
     Args:
         markdown_file: Path to markdown file
         llm_client: LLM client instance
@@ -239,30 +232,33 @@ def _parse_single_newsletter(
         default_parsing_prompt: Default parsing prompt
         model_name: Gemini model name to use
         parsed_dir: Directory to save parsed items
-        db_path: Path to database
         total_count: Total number of files being processed
         index: Current file index (1-based)
-    
+
     Returns:
         tuple: (message_id, success, error_message, parsed_items)
     """
     message_id = markdown_file.stem
     logger.info(f"[{index}/{total_count}] Processing {message_id}")
-    
+
+    repo = Repository()
+
     try:
-        # Check if already parsed
-        import sqlite3
-        db_conn = sqlite3.connect(db_path)
-        email_status = db_conn.execute(
-            "SELECT status FROM processed_emails WHERE message_id = ?", (message_id,)
-        ).fetchone()
-        
-        if email_status and email_status[0] == "parsed":
-            logger.info(f"[{index}/{total_count}] Skipping {message_id} - already parsed")
-            db_conn.close()
-            return (message_id, True, None, [])
-        
-        db_conn.close()
+        # Check if already parsed by checking if feed items exist for this message
+        from src.db.connection import get_connection
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT status FROM processed_emails WHERE message_id = %s
+                    """,
+                    (message_id,)
+                )
+                email_status = cursor.fetchone()
+
+            if email_status and email_status[0] == "parsed":
+                logger.info(f"[{index}/{total_count}] Skipping {message_id} - already parsed")
+                return (message_id, True, None, [])
         
         # Load markdown content
         with open(markdown_file, "r", encoding="utf-8") as f:
@@ -290,23 +286,78 @@ def _parse_single_newsletter(
         logger.info(f"[{index}/{total_count}] Calling {model_name} for {message_id}...")
         parsed_items = parse_newsletter(markdown_content, parsing_prompt, llm_client, model_name)
         logger.info(f"[{index}/{total_count}] Extracted {len(parsed_items)} items from {message_id}")
-        
-        # Save parsed items
+
+        # Save parsed items to file and convert to FeedItem format for PostgreSQL
         if parsed_items:
+            from datetime import datetime, timezone
+            from src.models.feed_item import FeedItem
+            from src.newsletter.id_generation import generate_newsletter_id
+
+            # Save to file for legacy compatibility
             save_parsed_items(message_id, parsed_items, parsed_dir)
-            insert_newsletter_items(db_path, message_id, parsed_items)
-        
+
+            # Convert to FeedItem objects and save to PostgreSQL
+            feed_items = []
+            for item in parsed_items:
+                try:
+                    # Generate stable ID using SHA-256
+                    item_id = generate_newsletter_id(
+                        item.get("title", ""),
+                        item.get("date", "")
+                    )
+
+                    # Parse date string to datetime
+                    date_str = item.get("date", "")
+                    try:
+                        if date_str:
+                            item_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                        else:
+                            item_date = datetime.now(timezone.utc)
+                    except (ValueError, AttributeError):
+                        item_date = datetime.now(timezone.utc)
+
+                    # Ensure timezone-aware datetime
+                    if item_date.tzinfo is None:
+                        item_date = item_date.replace(tzinfo=timezone.utc)
+
+                    # Build metadata
+                    metadata = {}
+                    if sender_email:
+                        metadata["sender"] = sender_email
+                    metadata["message_id"] = message_id
+
+                    # Create FeedItem
+                    feed_item = FeedItem(
+                        id=item_id,
+                        source_type="newsletter",
+                        source_id=item_id.split(":", 1)[1],  # Extract hash part after "newsletter:"
+                        title=item.get("title", "Untitled"),
+                        date=item_date,
+                        summary=item.get("summary"),
+                        link=item.get("link"),
+                        metadata=metadata,
+                        fetched_at=datetime.now(timezone.utc),
+                    )
+                    feed_items.append(feed_item)
+                except Exception as e:
+                    logger.warning(f"Failed to convert item to FeedItem: {e}")
+                    continue
+
+            # Save all feed items to PostgreSQL
+            if feed_items:
+                repo.save_feed_items(feed_items)
+
         # Update status
-        track_email_processed(db_path, message_id, sender_email, "parsed")
-        
+        repo.track_email_processed(message_id, sender_email, "parsed")
+
         return (message_id, True, None, parsed_items)
-        
+
     except Exception as e:
         error_msg = f"Error parsing {message_id}: {str(e)}"
         logger.error(f"[{index}/{total_count}] {error_msg}")
         try:
-            track_email_processed(
-                db_path, message_id, None, "error", error_message=error_msg
+            repo.track_email_processed(
+                message_id, sender_email or "", "error", error_message=error_msg
             )
         except:
             pass
@@ -316,7 +367,6 @@ def _parse_single_newsletter(
 def parse_newsletters(
     markdown_dir: str = "data/markdown",
     parsed_dir: str = "data/parsed",
-    db_path: str = "data/newsletter_aggregator.db",
     config_path: str = "config/senders.json",
     emails_dir: str = "data/emails",
     max_workers: int = 5,
@@ -331,7 +381,6 @@ def parse_newsletters(
     Args:
         markdown_dir: Directory containing markdown files
         parsed_dir: Directory to save parsed JSON files
-        db_path: Path to SQLite database
         config_path: Path to config/senders.json
         emails_dir: Directory containing email files (to get sender info)
         max_workers: Maximum number of parallel workers (default: 5)
@@ -419,7 +468,6 @@ def parse_newsletters(
                 default_parsing_prompt,
                 parsing_model,
                 parsed_dir,
-                db_path,
                 total_files,
                 idx,
             ): markdown_file
@@ -456,14 +504,14 @@ def parse_newsletters(
     
     logger.info(f"Parsing complete: {emails_parsed} newsletters parsed, {len(errors)} errors")
 
-    # Apply retention policy after successful processing
+    # Apply retention policy for PostgreSQL feed items
     try:
         retention_limit = config.get("retention_limit", 100)
         if retention_limit > 0:
-            data_dirs = [emails_dir, markdown_dir, parsed_dir]
-            deleted_count = apply_retention_policy(db_path, data_dirs, retention_limit)
+            repo = Repository()
+            deleted_count = repo.delete_old_feed_items("newsletter", retention_limit)
             if deleted_count > 0:
-                logger.info(f"Retention policy applied: {deleted_count} old record(s) deleted")
+                logger.info(f"Retention policy applied: {deleted_count} old feed item(s) deleted from PostgreSQL")
     except Exception as e:
         logger.warning(f"Failed to apply retention policy: {str(e)}")
         # Don't fail the whole operation if retention policy fails
