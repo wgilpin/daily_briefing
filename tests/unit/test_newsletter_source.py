@@ -6,7 +6,6 @@ Tests NewsletterSource.fetch_items with mocked existing newsletter modules.
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import MagicMock, patch
-
 import pytest
 
 from src.models.feed_item import FeedItem
@@ -43,57 +42,77 @@ class TestNewsletterSource:
             },
         ]
 
+    @pytest.fixture
+    def mock_pipeline(self, mock_parsed_items):
+        """Mock all pipeline functions."""
+        with patch("src.sources.newsletter.collect_newsletter_emails") as mock_collect, \
+             patch("src.sources.newsletter.convert_emails_to_markdown") as mock_convert, \
+             patch("src.sources.newsletter.parse_newsletters") as mock_parse, \
+             patch("src.sources.newsletter.get_all_parsed_items") as mock_get_items:
+
+            # Setup mocks
+            mock_collect.return_value = {"emails_collected": 2, "errors": []}
+            mock_convert.return_value = {"emails_converted": 2, "errors": []}
+            mock_parse.return_value = {"emails_parsed": 2, "errors": []}
+            mock_get_items.return_value = mock_parsed_items
+
+            yield {
+                "collect": mock_collect,
+                "convert": mock_convert,
+                "parse": mock_parse,
+                "get_items": mock_get_items,
+            }
+
     def test_fetch_items_returns_feed_items(
-        self, newsletter_config: NewsletterConfig, mock_parsed_items: list[dict[str, Any]]
+        self, newsletter_config: NewsletterConfig, mock_pipeline
     ) -> None:
         """Test that fetch_items returns list of FeedItem."""
-        with patch("src.sources.newsletter.NewsletterSource._fetch_from_storage") as mock_fetch:
-            mock_fetch.return_value = mock_parsed_items
+        from src.sources.newsletter import NewsletterSource
 
-            from src.sources.newsletter import NewsletterSource
+        source = NewsletterSource(newsletter_config)
+        items = source.fetch_items()
 
-            source = NewsletterSource(newsletter_config)
-            items = source.fetch_items()
-
-            assert isinstance(items, list)
-            assert all(isinstance(item, FeedItem) for item in items)
+        assert isinstance(items, list)
+        assert all(isinstance(item, FeedItem) for item in items)
 
     def test_fetch_items_correct_source_type(
-        self, newsletter_config: NewsletterConfig, mock_parsed_items: list[dict[str, Any]]
+        self, newsletter_config: NewsletterConfig, mock_pipeline
     ) -> None:
         """Test that items have correct source_type."""
-        with patch("src.sources.newsletter.NewsletterSource._fetch_from_storage") as mock_fetch:
-            mock_fetch.return_value = mock_parsed_items
+        from src.sources.newsletter import NewsletterSource
 
-            from src.sources.newsletter import NewsletterSource
+        source = NewsletterSource(newsletter_config)
+        items = source.fetch_items()
 
-            source = NewsletterSource(newsletter_config)
-            items = source.fetch_items()
-
-            assert all(item.source_type == "newsletter" for item in items)
+        assert all(item.source_type == "newsletter" for item in items)
 
     def test_fetch_items_extracts_title(
-        self, newsletter_config: NewsletterConfig, mock_parsed_items: list[dict[str, Any]]
+        self, newsletter_config: NewsletterConfig, mock_pipeline
     ) -> None:
         """Test that item titles are extracted correctly."""
-        with patch("src.sources.newsletter.NewsletterSource._fetch_from_storage") as mock_fetch:
-            mock_fetch.return_value = mock_parsed_items
+        from src.sources.newsletter import NewsletterSource
 
-            from src.sources.newsletter import NewsletterSource
+        source = NewsletterSource(newsletter_config)
+        items = source.fetch_items()
 
-            source = NewsletterSource(newsletter_config)
-            items = source.fetch_items()
-
-            titles = [item.title for item in items]
-            assert "AI News Roundup" in titles
-            assert "Tech Update" in titles
+        titles = [item.title for item in items]
+        assert "AI News Roundup" in titles
+        assert "Tech Update" in titles
 
     def test_fetch_items_handles_empty_response(
         self, newsletter_config: NewsletterConfig
     ) -> None:
         """Test handling of no newsletter items."""
-        with patch("src.sources.newsletter.NewsletterSource._fetch_from_storage") as mock_fetch:
-            mock_fetch.return_value = []
+        with patch("src.sources.newsletter.collect_newsletter_emails") as mock_collect, \
+             patch("src.sources.newsletter.convert_emails_to_markdown") as mock_convert, \
+             patch("src.sources.newsletter.parse_newsletters") as mock_parse, \
+             patch("src.sources.newsletter.get_all_parsed_items") as mock_get_items:
+
+            # Setup mocks
+            mock_collect.return_value = {"emails_collected": 0, "errors": []}
+            mock_convert.return_value = {"emails_converted": 0, "errors": []}
+            mock_parse.return_value = {"emails_parsed": 0, "errors": []}
+            mock_get_items.return_value = []
 
             from src.sources.newsletter import NewsletterSource
 
@@ -103,21 +122,18 @@ class TestNewsletterSource:
             assert items == []
 
     def test_fetch_items_handles_missing_link(
-        self, newsletter_config: NewsletterConfig, mock_parsed_items: list[dict[str, Any]]
+        self, newsletter_config: NewsletterConfig, mock_pipeline
     ) -> None:
         """Test handling of items without links."""
-        with patch("src.sources.newsletter.NewsletterSource._fetch_from_storage") as mock_fetch:
-            mock_fetch.return_value = mock_parsed_items
+        from src.sources.newsletter import NewsletterSource
 
-            from src.sources.newsletter import NewsletterSource
+        source = NewsletterSource(newsletter_config)
+        items = source.fetch_items()
 
-            source = NewsletterSource(newsletter_config)
-            items = source.fetch_items()
-
-            # Second item has no link
-            item_without_link = [i for i in items if i.title == "Tech Update"]
-            assert len(item_without_link) == 1
-            assert item_without_link[0].link is None
+        # Second item has no link
+        item_without_link = [i for i in items if i.title == "Tech Update"]
+        assert len(item_without_link) == 1
+        assert item_without_link[0].link is None
 
     def test_source_type_property(self, newsletter_config: NewsletterConfig) -> None:
         """Test that source_type property returns 'newsletter'."""
@@ -140,8 +156,16 @@ class TestNewsletterSource:
             }
         ]
 
-        with patch("src.sources.newsletter.NewsletterSource._fetch_from_storage") as mock_fetch:
-            mock_fetch.return_value = items_with_sender
+        with patch("src.sources.newsletter.collect_newsletter_emails") as mock_collect, \
+             patch("src.sources.newsletter.convert_emails_to_markdown") as mock_convert, \
+             patch("src.sources.newsletter.parse_newsletters") as mock_parse, \
+             patch("src.sources.newsletter.get_all_parsed_items") as mock_get_items:
+
+            # Setup mocks
+            mock_collect.return_value = {"emails_collected": 1, "errors": []}
+            mock_convert.return_value = {"emails_converted": 1, "errors": []}
+            mock_parse.return_value = {"emails_parsed": 1, "errors": []}
+            mock_get_items.return_value = items_with_sender
 
             from src.sources.newsletter import NewsletterSource
 

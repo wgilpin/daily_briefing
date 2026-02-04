@@ -20,16 +20,22 @@ logger = logging.getLogger(__name__)
 DEFAULT_PAGE_SIZE = 50
 
 
-def get_feed_service_with_sources() -> FeedService:
+def get_feed_service_with_sources(days_lookback: Optional[int] = None) -> FeedService:
     """Get FeedService with registered sources.
 
     Creates a FeedService instance with Zotero and Newsletter sources
     configured from environment variables.
 
+    Args:
+        days_lookback: Number of days to look back for items (overrides defaults)
+
     Returns:
         FeedService: Service instance with sources registered
     """
     service = FeedService()
+
+    # Use provided days_lookback or default to 7
+    effective_days = days_lookback if days_lookback is not None else 7
 
     # Register Zotero source if configured
     zotero_library_id = os.environ.get("ZOTERO_LIBRARY_ID")
@@ -38,7 +44,7 @@ def get_feed_service_with_sources() -> FeedService:
         zotero_config = ZoteroConfig(
             library_id=zotero_library_id,
             api_key=zotero_api_key,
-            days_lookback=7,
+            days_lookback=effective_days,
         )
         zotero_source = ZoteroSource(zotero_config)
         service.register_source(zotero_source)
@@ -47,6 +53,7 @@ def get_feed_service_with_sources() -> FeedService:
     newsletter_config = NewsletterConfig(
         sender_emails=[],  # Will be loaded from config file
         max_emails_per_refresh=20,
+        days_lookback=effective_days,
     )
     newsletter_source = NewsletterSource(newsletter_config)
     service.register_source(newsletter_source)
@@ -93,7 +100,7 @@ def feed():
     if source_type == "all":
         source_type = None
 
-    days_str = request.args.get("days", "7")
+    days_str = request.args.get("days", "1")
     days: Optional[int] = None
     if days_str:
         try:
@@ -224,25 +231,88 @@ def api_refresh():
     Fetches new items from all configured sources and saves them
     to the database. Returns HTMX partial with status and triggers feed reload.
 
+    Form Parameters:
+        days: Number of days to look back for items (optional)
+
     Returns:
         HTML: HTMX response fragment with refresh status
     """
     try:
+        # Get days parameter from form data
+        days_str = request.form.get("days", "")
+        days_lookback: Optional[int] = None
+        if days_str:
+            try:
+                days_lookback = int(days_str)
+            except ValueError:
+                days_lookback = None
+
         # Use print for immediate output to debug console
         print("=" * 60, flush=True)
-        print("REFRESH TRIGGERED - Starting feed refresh", flush=True)
+        print(f"REFRESH TRIGGERED - Starting feed refresh (days_lookback={days_lookback})", flush=True)
         print("=" * 60, flush=True)
         logger.info("=" * 60)
-        logger.info("REFRESH TRIGGERED - Starting feed refresh")
+        logger.info(f"REFRESH TRIGGERED - Starting feed refresh (days_lookback={days_lookback})")
         logger.info("=" * 60)
 
-        service = get_feed_service_with_sources()
+        service = get_feed_service_with_sources(days_lookback=days_lookback)
         print(f"Registered sources: {list(service.sources.keys())}", flush=True)
         logger.info(f"Registered sources: {list(service.sources.keys())}")
 
         result = service.refresh_all()
         print(f"Refresh result: {result}", flush=True)
         logger.info(f"Refresh result: {result}")
+
+        # CONSOLIDATE NEWSLETTERS WITH EXCLUSIONS
+        consolidation_result = None
+        if result["success"] and result.get("sources", {}).get("newsletter"):
+            try:
+                from src.newsletter.config import load_config
+                from src.newsletter.consolidator import consolidate_newsletters
+                from src.newsletter.storage import get_recent_parsed_items, save_consolidated_digest
+                import google.genai as genai
+                import os
+
+                logger.info("Starting newsletter consolidation with exclusions...")
+
+                # Load config to get exclusions and prompts
+                config = load_config()
+                logger.info(f"Loaded config with {len(config.excluded_topics)} excluded topics: {config.excluded_topics}")
+
+                # Get recently parsed newsletter items (from the refresh period)
+                # Use the same days_lookback value used for refresh, or default to 1
+                consolidation_days = days_lookback if days_lookback is not None else 1
+                parsed_items = get_recent_parsed_items("data/newsletter_aggregator.db", days=consolidation_days)
+                logger.info(f"Retrieved {len(parsed_items)} parsed items from last {consolidation_days} day(s) for consolidation")
+
+                if parsed_items:
+                    # Create LLM client
+                    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+                    if not gemini_api_key:
+                        raise ValueError("GEMINI_API_KEY not set")
+
+                    llm_client = genai.Client(api_key=gemini_api_key)
+
+                    # Consolidate with exclusions
+                    consolidated_markdown = consolidate_newsletters(
+                        parsed_items=parsed_items,
+                        prompt=config.consolidation_prompt,
+                        llm_client=llm_client,
+                        model_name=config.models["consolidation"],
+                        excluded_topics=config.excluded_topics  # PASS EXCLUSIONS HERE
+                    )
+
+                    # Save consolidated digest
+                    output_path = save_consolidated_digest(consolidated_markdown, "data/output")
+                    logger.info(f"Saved consolidated newsletter to {output_path}")
+                    consolidation_result = {"success": True, "path": output_path}
+                else:
+                    logger.info("No parsed items to consolidate")
+                    consolidation_result = {"success": False, "reason": "no_items"}
+
+            except Exception as e:
+                logger.error(f"Error during consolidation: {e}")
+                consolidation_result = {"success": False, "error": str(e)}
 
         if result["success"]:
             # Build status message
@@ -269,11 +339,22 @@ def api_refresh():
                 status_class = "success"
                 status_text = "Refresh complete"
 
+            # Add consolidation status if it ran
+            consolidation_message = ""
+            if consolidation_result:
+                if consolidation_result.get("success"):
+                    consolidation_message = f"<p>✓ Newsletter consolidated (saved to {consolidation_result.get('path')})</p>"
+                elif consolidation_result.get("reason") == "no_items":
+                    consolidation_message = "<p>ℹ No newsletter items to consolidate</p>"
+                elif consolidation_result.get("error"):
+                    consolidation_message = f"<p>⚠ Consolidation failed: {consolidation_result.get('error')}</p>"
+
             response = make_response(f"""
             <div id="refresh-status" class="status {status_class}">
                 <p><strong>{status_text}</strong></p>
                 <p>{'. '.join(source_messages)}</p>
                 <p>Total: {result['total_items']} items fetched</p>
+                {consolidation_message}
             </div>
             """)
             # Trigger feed reload after status is shown
@@ -354,6 +435,70 @@ def api_health():
         status=status_code,
         mimetype="application/json"
     )
+
+
+@bp.route("/api/feed/clear", methods=["DELETE"])
+@login_required
+def clear_feed_items():
+    """
+    Clear all feed items from the database.
+
+    Deletes all items from the PostgreSQL feed_items table and clears
+    the SQLite newsletter storage. This does not affect user accounts,
+    settings, or OAuth tokens - only cached feed items.
+
+    Returns:
+        HTML: Success or error message for HTMX display
+    """
+    try:
+        import sqlite3
+        from src.db.connection import get_connection
+
+        # Clear PostgreSQL feed_items
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM feed_items")
+            pg_deleted_count = cursor.rowcount
+        conn.commit()
+
+        logger.info(f"Cleared {pg_deleted_count} feed items from PostgreSQL")
+
+        # Clear SQLite newsletter storage
+        sqlite_deleted_count = 0
+        try:
+            sqlite_conn = sqlite3.connect("data/newsletter_aggregator.db")
+            sqlite_cursor = sqlite_conn.cursor()
+
+            # Delete all newsletter items
+            sqlite_cursor.execute("DELETE FROM newsletter_items")
+            items_deleted = sqlite_cursor.rowcount
+
+            # Delete all processed email records
+            sqlite_cursor.execute("DELETE FROM processed_emails")
+            emails_deleted = sqlite_cursor.rowcount
+
+            sqlite_conn.commit()
+            sqlite_conn.close()
+
+            sqlite_deleted_count = items_deleted + emails_deleted
+            logger.info(f"Cleared {items_deleted} items and {emails_deleted} processed emails from SQLite")
+        except Exception as sqlite_error:
+            logger.warning(f"Failed to clear SQLite newsletter storage: {sqlite_error}")
+
+        return f"""
+        <div class="status success">
+            Successfully deleted {pg_deleted_count} feed items from database
+            and cleared {sqlite_deleted_count} newsletter records.
+            <a href="/feed">Go to feed</a> to reload fresh data.
+        </div>
+        """
+    except Exception as e:
+        logger.error(f"Error clearing feed items: {e}")
+        return f"""
+        <div class="status error">
+            Error clearing feed items: {str(e)}
+        </div>
+        """, 500
 
 
 @bp.route("/settings")
@@ -655,3 +800,181 @@ def _render_feed_item(item: FeedItem) -> str:
         {metadata_html}
     </article>
     """
+
+
+# =============================================================================
+# Topic Exclusion Routes
+# =============================================================================
+
+
+@bp.route("/settings/exclusions/list", methods=["GET"])
+@login_required
+def list_exclusions():
+    """
+    Render the current list of excluded topics as HTML partial.
+
+    Returns:
+        HTML: List of excluded topics with remove buttons
+    """
+    try:
+        from src.newsletter.config import load_config
+
+        config = load_config()
+
+        if not config.excluded_topics:
+            return """
+            <ul id="exclusion-list" class="exclusion-list">
+                <li class="no-exclusions">No topics excluded</li>
+            </ul>
+            """
+
+        # Build list items
+        items_html = []
+        for index, topic in enumerate(config.excluded_topics):
+            items_html.append(f"""
+            <li class="exclusion-item" data-index="{index}">
+                <span class="topic-text">{topic}</span>
+                <button
+                    class="btn-small btn-danger"
+                    hx-delete="/settings/exclusions/delete/{index}"
+                    hx-target="closest li"
+                    hx-swap="outerHTML"
+                    hx-confirm="Remove '{topic}' from exclusions?">
+                    Remove
+                </button>
+            </li>
+            """)
+
+        return f"""
+        <ul id="exclusion-list" class="exclusion-list">
+            {''.join(items_html)}
+        </ul>
+        """
+
+    except Exception as e:
+        logger.error(f"Error loading exclusions: {e}")
+        return """
+        <div class="alert alert-error" role="alert">
+            Error loading exclusions. Please try refreshing the page.
+        </div>
+        """, 500
+
+
+@bp.route("/settings/exclusions/add", methods=["POST"])
+@login_required
+def add_exclusion():
+    """
+    Add a new topic to the exclusion list.
+
+    Form Parameters:
+        topic: Topic to exclude (1-100 characters)
+
+    Returns:
+        HTML: New list item fragment or error message
+    """
+    try:
+        from src.newsletter.config import load_config, save_config
+
+        topic = request.form.get("topic", "").strip()
+
+        # Validation
+        if not topic:
+            return """
+            <div class="alert alert-error" role="alert">
+                Topic cannot be empty
+            </div>
+            """, 400
+
+        if len(topic) > 100:
+            return """
+            <div class="alert alert-error" role="alert">
+                Topic exceeds 100 character limit
+            </div>
+            """, 400
+
+        # Load config
+        config = load_config()
+
+        # Check limit
+        if len(config.excluded_topics) >= 50:
+            return """
+            <div class="alert alert-error" role="alert">
+                Maximum 50 topics allowed. Please remove some before adding more.
+            </div>
+            """, 409
+
+        # Add topic
+        config.excluded_topics.append(topic)
+        save_config(config)
+
+        # Return new list item
+        index = len(config.excluded_topics) - 1
+        return f"""
+        <li class="exclusion-item" data-index="{index}">
+            <span class="topic-text">{topic}</span>
+            <button
+                class="btn-small btn-danger"
+                hx-delete="/settings/exclusions/delete/{index}"
+                hx-target="closest li"
+                hx-swap="outerHTML"
+                hx-confirm="Remove '{topic}' from exclusions?">
+                Remove
+            </button>
+        </li>
+        """
+
+    except ValueError as e:
+        logger.error(f"Validation error adding exclusion: {e}")
+        return f"""
+        <div class="alert alert-error" role="alert">
+            {str(e)}
+        </div>
+        """, 400
+    except Exception as e:
+        logger.error(f"Error adding exclusion: {e}")
+        return """
+        <div class="alert alert-error" role="alert">
+            Error adding topic. Please try again.
+        </div>
+        """, 500
+
+
+@bp.route("/settings/exclusions/delete/<int:index>", methods=["DELETE"])
+@login_required
+def delete_exclusion(index: int):
+    """
+    Remove a topic from the exclusion list by index.
+
+    Path Parameters:
+        index: Zero-based index of topic to remove
+
+    Returns:
+        HTML: Empty response (HTMX removes element) or error message
+    """
+    try:
+        from src.newsletter.config import load_config, save_config
+
+        config = load_config()
+
+        # Validate index
+        if index < 0 or index >= len(config.excluded_topics):
+            return f"""
+            <div class="alert alert-error" role="alert">
+                Topic not found at index {index}
+            </div>
+            """, 404
+
+        # Remove topic
+        config.excluded_topics.pop(index)
+        save_config(config)
+
+        # Return empty response - HTMX will remove the element
+        return "", 200
+
+    except Exception as e:
+        logger.error(f"Error deleting exclusion at index {index}: {e}")
+        return """
+        <div class="alert alert-error" role="alert">
+            Error removing topic. Please try again.
+        </div>
+        """, 500

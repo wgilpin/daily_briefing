@@ -502,6 +502,74 @@ def get_all_parsed_items(db_path: str) -> list[dict]:
         conn.close()
 
 
+def get_recent_parsed_items(db_path: str, days: int = 1) -> list[dict]:
+    """
+    Get parsed newsletter items from the last N days.
+
+    Queries the newsletter_items table and returns items parsed within
+    the specified number of days.
+
+    Args:
+        db_path: Path to SQLite database file
+        days: Number of days to look back (default: 1)
+
+    Returns:
+        list[dict]: List of parsed items, each with keys: date, title, summary, link
+
+    Side Effects:
+        - Reads from newsletter_items table
+        - Returns empty list if no items exist
+
+    Postconditions:
+        - Returns list (may be empty)
+        - Each item has at least 'title' field
+        - Items are ordered by parsed_at DESC (most recent first)
+        - Only includes items parsed within last N days
+    """
+    from datetime import datetime, timedelta, timezone
+
+    db_path_obj = Path(db_path)
+
+    if not db_path_obj.exists():
+        return []
+
+    conn = sqlite3.connect(str(db_path_obj))
+    cursor = conn.cursor()
+
+    try:
+        # Calculate cutoff timestamp
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_str = cutoff.isoformat()
+
+        cursor.execute(
+            """
+            SELECT date, title, summary, link
+            FROM newsletter_items
+            WHERE parsed_at >= ?
+            ORDER BY parsed_at DESC
+            """,
+            (cutoff_str,),
+        )
+
+        rows = cursor.fetchall()
+
+        # Convert rows to list of dicts
+        items = []
+        for row in rows:
+            item = {
+                "date": row[0],
+                "title": row[1],
+                "summary": row[2],
+                "link": row[3],
+            }
+            items.append(item)
+
+        return items
+
+    finally:
+        conn.close()
+
+
 def save_consolidated_digest(markdown_content: str, output_dir: str) -> str:
     """
     Save consolidated newsletter digest to file system.

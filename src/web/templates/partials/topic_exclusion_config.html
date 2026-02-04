@@ -1,0 +1,37 @@
+<div class="source-config-form">
+    <h4>Topic Exclusions</h4>
+
+    <p class="section-description">
+        Topics to exclude from consolidated newsletters (max 50, 100 chars each).
+        Topics are matched semantically by the LLM during newsletter consolidation.
+    </p>
+
+    <form
+        hx-post="/settings/exclusions/add"
+        hx-target="#exclusion-list"
+        hx-swap="beforeend"
+        class="config-form">
+        <div class="form-group">
+            <label for="exclusion-topic">Add Topic to Exclude</label>
+            <input
+                type="text"
+                id="exclusion-topic"
+                name="topic"
+                maxlength="100"
+                placeholder="e.g., datasette, SQL internals, low-level coding"
+                required>
+            <span class="form-hint">
+                Enter a topic or keyword to filter out from newsletters
+            </span>
+        </div>
+        <button type="submit" class="btn btn-primary">Add Topic</button>
+    </form>
+
+    <div
+        hx-get="/settings/exclusions/list"
+        hx-trigger="load"
+        hx-target="this"
+        hx-swap="innerHTML">
+        Loading exclusions...
+    </div>
+</div>

@@ -28,7 +28,8 @@
       "Bash(pytest:*)",
       "Bash(ruff check:*)",
       "Bash(netstat:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(test:*)"
     ],
     "deny": [],
     "ask": []

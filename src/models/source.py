@@ -8,7 +8,7 @@ Defines configuration models for:
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -28,7 +28,7 @@ class SourceConfig(BaseModel):
     enabled: bool = Field(default=True)
     last_refresh: Optional[datetime] = Field(default=None)
     last_error: Optional[str] = Field(default=None)
-    settings: dict[str, str] = Field(
+    settings: dict[str, Union[str, int, bool, list[str]]] = Field(
         default_factory=dict,
         description="Source-specific settings",
     )
@@ -59,11 +59,13 @@ class NewsletterConfig(BaseModel):
         sender_emails: List of sender email addresses to collect from
         parsing_prompt: Custom LLM prompt for parsing newsletters
         max_emails_per_refresh: Maximum emails to process per refresh (1-100)
+        days_lookback: Days to look back for emails (1-365)
     """
 
     sender_emails: list[str] = Field(default_factory=list)
     parsing_prompt: Optional[str] = Field(default=None)
     max_emails_per_refresh: int = Field(default=20, ge=1, le=100)
+    days_lookback: int = Field(default=30, ge=1, le=365)
 
 
 class AppSettings(BaseModel):
