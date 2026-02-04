@@ -269,7 +269,7 @@ def api_refresh():
             try:
                 from src.newsletter.config import load_config
                 from src.newsletter.consolidator import consolidate_newsletters
-                from src.newsletter.storage import get_all_parsed_items, save_consolidated_digest
+                from src.newsletter.storage import get_recent_parsed_items, save_consolidated_digest
                 import google.genai as genai
                 import os
 
@@ -279,9 +279,11 @@ def api_refresh():
                 config = load_config()
                 logger.info(f"Loaded config with {len(config.excluded_topics)} excluded topics: {config.excluded_topics}")
 
-                # Get all parsed newsletter items
-                parsed_items = get_all_parsed_items("data/newsletter_aggregator.db")
-                logger.info(f"Retrieved {len(parsed_items)} parsed items for consolidation")
+                # Get recently parsed newsletter items (from the refresh period)
+                # Use the same days_lookback value used for refresh, or default to 1
+                consolidation_days = days_lookback if days_lookback is not None else 1
+                parsed_items = get_recent_parsed_items("data/newsletter_aggregator.db", days=consolidation_days)
+                logger.info(f"Retrieved {len(parsed_items)} parsed items from last {consolidation_days} day(s) for consolidation")
 
                 if parsed_items:
                     # Create LLM client
