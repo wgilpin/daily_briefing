@@ -3,6 +3,8 @@
 import hashlib
 import logging
 import os
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -94,15 +96,95 @@ def cache_audio(link: str | None, voice_id: str, audio_bytes: bytes) -> None:
 
 def concatenate_audio_segments(segments: list[AudioSegment]) -> bytes:
     """
-    Concatenate multiple audio segments into single MP3.
+    Concatenate multiple audio segments into single MP3 with normalized volume.
+
+    Uses ffmpeg to normalize volume levels before concatenation to avoid
+    volume differences between male and female voices.
 
     Args:
         segments: List of AudioSegment objects
 
     Returns:
-        Combined audio bytes
+        Combined audio bytes as MP3
     """
-    return b"".join(segment.audio_bytes for segment in segments)
+    if not segments:
+        return b""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+
+        # Save each segment to a temp file and normalize with ffmpeg
+        normalized_files = []
+        for i, segment in enumerate(segments):
+            input_file = tmpdir_path / f"segment_{i:03d}_input.mp3"
+            output_file = tmpdir_path / f"segment_{i:03d}_normalized.mp3"
+
+            # Write segment to temp file
+            input_file.write_bytes(segment.audio_bytes)
+
+            try:
+                # Normalize audio using ffmpeg loudnorm filter
+                # This ensures consistent volume levels across all segments
+                subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-i",
+                        str(input_file),
+                        "-af",
+                        "loudnorm=I=-16:TP=-1.5:LRA=11",  # EBU R128 normalization
+                        "-y",  # Overwrite output file
+                        str(output_file),
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                normalized_files.append(output_file)
+            except subprocess.CalledProcessError as e:
+                logger.warning(
+                    f"Failed to normalize segment {segment.item_number}: {e.stderr}"
+                )
+                # Fall back to original file without normalization
+                normalized_files.append(input_file)
+
+        # Create concat file list for ffmpeg
+        concat_file = tmpdir_path / "concat_list.txt"
+        with open(concat_file, "w") as f:
+            for file_path in normalized_files:
+                # Use forward slashes for ffmpeg compatibility
+                file_str = str(file_path).replace("\\", "/")
+                f.write(f"file '{file_str}'\n")
+
+        # Concatenate all normalized segments
+        output_file = tmpdir_path / "combined.mp3"
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    str(concat_file),
+                    "-c",
+                    "copy",  # Copy codec, no re-encoding
+                    "-y",
+                    str(output_file),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            # Read and return the combined audio
+            return output_file.read_bytes()
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to concatenate audio segments: {e.stderr}")
+            # Fall back to simple byte concatenation
+            logger.warning("Falling back to simple concatenation without normalization")
+            return b"".join(segment.audio_bytes for segment in segments)
 
 
 def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
