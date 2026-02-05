@@ -324,13 +324,17 @@ def api_refresh():
                 # Convert FeedItem objects to dict format expected by consolidator
                 parsed_items = []
                 for item in feed_items:
-                    parsed_items.append({
+                    item_dict = {
                         "date": item.date.isoformat() if item.date else None,
                         "title": item.title,
                         "summary": item.summary or "",
                         "link": item.link,
                         "source_type": item.source_type,
-                    })
+                    }
+                    # Include authors metadata for Zotero items
+                    if item.source_type == "zotero" and item.metadata.get("authors"):
+                        item_dict["authors"] = item.metadata["authors"]
+                    parsed_items.append(item_dict)
 
                 if parsed_items:
                     # Create LLM client

@@ -5,8 +5,11 @@ Database operations have been migrated to PostgreSQL repository (src/db/reposito
 """
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def init_data_directories(base_data_dir: str = "data") -> None:
@@ -207,6 +210,7 @@ def save_consolidated_digest(markdown_content: str, output_dir: str) -> str:
 
     Saves markdown content to a timestamped file in the specified directory.
     File is named: digest_{timestamp}.md
+    Also generates an MP3 audio file via text-to-speech if ElevenLabs API is configured.
 
     Args:
         markdown_content: Markdown text of consolidated newsletter
@@ -218,6 +222,7 @@ def save_consolidated_digest(markdown_content: str, output_dir: str) -> str:
     Side Effects:
         - Creates file {output_dir}/digest_{timestamp}.md
         - Writes markdown content
+        - Optionally creates {output_dir}/digest_{timestamp}.mp3 (audio file)
         - Creates directory if needed
 
     Raises:
@@ -235,6 +240,29 @@ def save_consolidated_digest(markdown_content: str, output_dir: str) -> str:
 
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(markdown_content)
+
+    # Generate audio file for newsletter
+    try:
+        from src.services.audio.audio_generator import generate_audio_for_newsletter
+
+        logger.info(f"Generating audio for newsletter: {file_path}")
+        audio_result = generate_audio_for_newsletter(file_path)
+
+        if audio_result.success:
+            logger.info(
+                f"Audio generated successfully: {audio_result.output_path} "
+                f"({audio_result.items_processed}/{audio_result.total_items} items, "
+                f"{audio_result.duration_seconds:.2f}s)"
+            )
+        else:
+            logger.warning(
+                f"Audio generation failed or incomplete: "
+                f"{audio_result.items_processed}/{audio_result.total_items} items processed. "
+                f"Error: {audio_result.error_message}"
+            )
+    except Exception as e:
+        # Don't fail newsletter save if audio generation fails
+        logger.error(f"Audio generation failed: {e}", exc_info=True)
 
     return str(file_path)
 
