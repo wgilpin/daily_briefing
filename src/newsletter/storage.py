@@ -149,6 +149,59 @@ def save_parsed_items(
     return str(file_path)
 
 
+def get_last_digest_timestamp(output_dir: str = "data/output") -> datetime | None:
+    """Get the timestamp of the most recent digest file.
+
+    Parses digest filenames to find the most recent one and extracts its timestamp.
+    Returns None if no digest files exist.
+
+    Args:
+        output_dir: Output directory path (default: 'data/output')
+
+    Returns:
+        datetime | None: Timestamp of most recent digest, or None if no digests exist
+
+    Side Effects:
+        - Reads directory listing from output_dir
+    """
+    output_dir_obj = Path(output_dir)
+
+    if not output_dir_obj.exists():
+        return None
+
+    # Find all digest files matching pattern: digest_YYYYMMDD_HHMMSS_ffffff.md
+    digest_files = list(output_dir_obj.glob("digest_*.md"))
+
+    if not digest_files:
+        return None
+
+    # Sort by filename (which naturally sorts by timestamp) and get the most recent
+    digest_files.sort(reverse=True)
+    most_recent = digest_files[0]
+
+    # Extract timestamp from filename: digest_20260204_184222_737575.md
+    filename = most_recent.stem  # Remove .md extension
+    parts = filename.split("_")  # ['digest', '20260204', '184222', '737575']
+
+    if len(parts) != 4:
+        return None
+
+    try:
+        # Parse: YYYYMMDD_HHMMSS_ffffff
+        date_str = parts[1]  # '20260204'
+        time_str = parts[2]  # '184222'
+        microsec_str = parts[3]  # '737575'
+
+        # Construct datetime
+        timestamp_str = f"{date_str}_{time_str}_{microsec_str}"
+        timestamp = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S_%f")
+
+        # Convert to UTC timezone-aware datetime
+        return timestamp.replace(tzinfo=timezone.utc)
+    except (ValueError, IndexError):
+        return None
+
+
 def save_consolidated_digest(markdown_content: str, output_dir: str) -> str:
     """Save consolidated newsletter digest to file system.
 
@@ -186,16 +239,20 @@ def save_consolidated_digest(markdown_content: str, output_dir: str) -> str:
     return str(file_path)
 
 
-def get_recent_parsed_items(db_path: str, days: int = 1) -> list[dict]:
-    """Get parsed newsletter items from the last N days.
+def get_recent_parsed_items(
+    db_path: str, days: int | None = None, since: datetime | None = None
+) -> list[dict]:
+    """Get parsed newsletter items from the last N days or since a specific datetime.
 
     Queries PostgreSQL feed_items table for newsletter items within the
-    specified number of days. The db_path parameter is kept for backward
-    compatibility but is ignored (PostgreSQL connection used instead).
+    specified number of days OR since a specific datetime. The db_path parameter
+    is kept for backward compatibility but is ignored (PostgreSQL connection used instead).
 
     Args:
         db_path: Ignored (kept for backward compatibility)
-        days: Number of days to look back (default: 1)
+        days: Number of days to look back (default: None)
+        since: Get items since this datetime (default: None)
+              If both days and since are None, defaults to 1 day
 
     Returns:
         list[dict]: List of parsed items, each with keys: date, title, summary, link
@@ -208,12 +265,18 @@ def get_recent_parsed_items(db_path: str, days: int = 1) -> list[dict]:
 
     repo = Repository()
 
-    # Calculate cutoff date
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-
     # Get newsletter items from PostgreSQL
     with get_connection():
-        feed_items = repo.get_feed_items(source_type="newsletter", days=days)
+        if since is not None:
+            # Get items since a specific datetime
+            feed_items = repo.get_feed_items_since(
+                source_type="newsletter", since=since
+            )
+        else:
+            # Get items from last N days (default to 1 if not specified)
+            if days is None:
+                days = 1
+            feed_items = repo.get_feed_items(source_type="newsletter", days=days)
 
     # Convert FeedItem objects to dict format expected by consolidator
     items = []

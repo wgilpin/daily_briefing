@@ -48,6 +48,7 @@ class FeedService:
         limit: int = 50,
         offset: int = 0,
         days: Optional[int] = None,
+        since: Optional[datetime] = None,
     ) -> list[FeedItem]:
         """Get unified feed items from all sources.
 
@@ -58,16 +59,25 @@ class FeedService:
             limit: Maximum number of items to return
             offset: Number of items to skip (for pagination)
             days: Filter to items from last N days (optional)
+            since: Filter to items since this datetime (optional, overrides days)
 
         Returns:
             List of FeedItem objects sorted by date descending
         """
-        items = self._repository.get_feed_items(
-            source_type=source_type,
-            limit=limit,
-            offset=offset,
-            days=days,
-        )
+        if since is not None:
+            items = self._repository.get_feed_items_since(
+                since=since,
+                source_type=source_type,
+                limit=limit,
+                offset=offset,
+            )
+        else:
+            items = self._repository.get_feed_items(
+                source_type=source_type,
+                limit=limit,
+                offset=offset,
+                days=days,
+            )
 
         # Ensure sorted by date descending (in case DB doesn't guarantee order)
         return sorted(items, key=lambda x: x.date, reverse=True)
