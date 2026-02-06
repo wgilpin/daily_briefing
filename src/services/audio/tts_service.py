@@ -29,6 +29,19 @@ class KokoroTTSService:
         try:
             self._pipeline = KPipeline(lang_code='b')
             logger.info("Kokoro TTS pipeline initialized (British English)")
+        except OSError as e:
+            # Check if it's the missing spaCy model error
+            if "en_core_web_sm" in str(e):
+                error_msg = (
+                    "Kokoro requires spaCy's 'en_core_web_sm' model.\n"
+                    "Install it with: uv run python -c \"import spacy; spacy.cli.download('en_core_web_sm')\"\n"
+                    f"Original error: {e}"
+                )
+                logger.error(error_msg)
+                raise TTSGenerationError(error_msg) from e
+            else:
+                logger.error(f"Failed to initialize Kokoro pipeline: {e}")
+                raise TTSGenerationError(f"Pipeline initialization failed: {e}") from e
         except Exception as e:
             logger.error(f"Failed to initialize Kokoro pipeline: {e}")
             raise TTSGenerationError(f"Pipeline initialization failed: {e}") from e
