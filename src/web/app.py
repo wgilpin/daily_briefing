@@ -205,9 +205,11 @@ def create_app() -> Flask:
     # Register blueprints
     from src.web.feed_routes import bp as main_bp
     from src.web.auth_routes import bp as auth_bp
+    from src.web.audio_routes import audio_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(audio_bp)
 
     return app
 

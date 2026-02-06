@@ -786,7 +786,7 @@ def api_settings_delete_sender(email: str):
 
 
 def _render_feed_item(item: FeedItem) -> str:
-    """Render a single feed item as HTML.
+    """Render a single feed item as HTML using Jinja template.
 
     Args:
         item: FeedItem to render
@@ -794,43 +794,23 @@ def _render_feed_item(item: FeedItem) -> str:
     Returns:
         str: HTML string for the feed item
     """
-    # Format metadata
-    metadata_html = ""
-    if item.metadata:
-        metadata_parts = []
-        if item.metadata.get("authors"):
-            metadata_parts.append(
-                f'<span class="metadata-item"><strong>Authors:</strong> {item.metadata["authors"]}</span>'
-            )
-        if item.metadata.get("sender"):
-            metadata_parts.append(
-                f'<span class="metadata-item"><strong>From:</strong> {item.metadata["sender"]}</span>'
-            )
-        if metadata_parts:
-            metadata_html = f'<div class="feed-item-metadata">{" ".join(metadata_parts)}</div>'
+    from flask import render_template
 
-    # Format title with optional link
-    if item.link:
-        title_html = f'<a href="{item.link}" target="_blank" rel="noopener noreferrer">{item.title}</a>'
-    else:
-        title_html = item.title
-
-    # Format summary
-    summary_html = ""
-    if item.summary:
-        # Truncate to 300 chars
-        summary = item.summary[:300] + "..." if len(item.summary) > 300 else item.summary
-        summary_html = f'<p class="feed-item-summary">{summary}</p>'
-
-    return f"""
+    # Use render_template to properly render the partial with Flask context
+    try:
+        return render_template("partials/feed_item.html", item=item)
+    except Exception as e:
+        logger.error(f"Error rendering feed item template: {e}")
+        # Fallback to basic rendering without audio
+        return f"""
     <article class="feed-item" data-source="{item.source_type}">
         <div class="feed-item-header">
             <span class="source-badge {item.source_type}">{item.source_type.capitalize()}</span>
             <time datetime="{item.date.isoformat()}">{item.date.strftime('%Y-%m-%d')}</time>
         </div>
-        <h3 class="feed-item-title">{title_html}</h3>
-        {summary_html}
-        {metadata_html}
+        <h3 class="feed-item-title">
+            {"<a href='" + item.link + "' target='_blank' rel='noopener noreferrer'>" + item.title + "</a>" if item.link else item.title}
+        </h3>
     </article>
     """
 

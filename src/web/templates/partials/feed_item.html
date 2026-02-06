@@ -1,7 +1,19 @@
-<article class="feed-item" data-source="{{ item.source_type }}">
+<article class="feed-item"
+         data-source="{{ item.source_type }}"
+         data-item-id="{{ item.source_id }}"
+         {% if item.has_audio %}data-audio-path="/audio/{{ item.source_id }}"{% endif %}>
     <div class="feed-item-header">
-        <span class="source-badge {{ item.source_type }}">{{ item.source_type|capitalize }}</span>
-        <time datetime="{{ item.date.isoformat() }}">{{ item.date.strftime('%Y-%m-%d') }}</time>
+        <div class="header-left">
+            <span class="source-badge {{ item.source_type }}">{{ item.source_type|capitalize }}</span>
+            <time datetime="{{ item.date.isoformat() }}">{{ item.date.strftime('%Y-%m-%d') }}</time>
+        </div>
+        {% if item.has_audio %}
+        <button @click="playItem('{{ item.source_id }}', '/audio/{{ item.source_id }}', '{{ item.title|replace("'", "\\'") }}')"
+                class="item-play-btn"
+                aria-label="Play audio for {{ item.title }}">
+          ▶ Listen
+        </button>
+        {% endif %}
     </div>
     <h3 class="feed-item-title">
         {% if item.link %}
@@ -31,11 +43,18 @@
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     padding: 15px 20px;
-    transition: box-shadow 0.2s;
+    transition: all 0.3s;
 }
 
 .feed-item:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Playing item highlight */
+.feed-item.playing {
+    background-color: #e8f4f8;
+    border-left: 4px solid #3498db;
+    padding-left: 16px;
 }
 
 .feed-item-header {
@@ -43,6 +62,29 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* Item play button */
+.item-play-btn {
+    background: #3498db;
+    border: none;
+    font-size: 0.85em;
+    cursor: pointer;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.item-play-btn:hover {
+    background: #2980b9;
 }
 
 .source-badge {

@@ -5,8 +5,9 @@ Represents a normalized feed item from any source (Zotero, Newsletter, etc.).
 
 from datetime import datetime
 from typing import Optional
+from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, computed_field
 
 
 class FeedItem(BaseModel):
@@ -46,3 +47,24 @@ class FeedItem(BaseModel):
         if not v.strip():
             raise ValueError("title cannot be empty or whitespace")
         return v
+
+    @computed_field
+    @property
+    def has_audio(self) -> bool:
+        """Check if audio file exists for this item.
+
+        Returns:
+            bool: True if MP3 file exists in data/audio_cache/, False otherwise
+        """
+        audio_file = Path(f"data/audio_cache/{self.source_id}.mp3")
+        return audio_file.exists()
+
+    @computed_field
+    @property
+    def audio_path(self) -> Optional[str]:
+        """Return audio URL path if available.
+
+        Returns:
+            str | None: URL path to audio file, or None if no audio exists
+        """
+        return f"/audio/{self.source_id}" if self.has_audio else None

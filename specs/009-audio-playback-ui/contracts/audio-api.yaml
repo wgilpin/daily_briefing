@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: Audio Playback API
+  description: HTTP API for serving audio files to feed items
+  version: 1.0.0
+  contact:
+    name: Daily Briefing
+
+servers:
+  - url: http://localhost:5000
+    description: Local development
+
+security:
+  - cookieAuth: []
+
+paths:
+  /audio/{item_id}:
+    get:
+      summary: Serve audio file for feed item
+      description: |
+        Streams MP3 audio file for a given feed item. Supports HTTP Range requests
+        for seeking and partial content delivery (required for browser media controls).
+
+        **Authentication**: Requires active session (cookie-based)
+        **Caching**: Long-lived cache headers (1 year) due to content-addressed filenames
+        **Range Support**: Returns 206 Partial Content when Range header present
+      operationId: serveAudio
+      tags:
+        - Audio
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          description: Feed item identifier (content hash)
+          schema:
+            type: string
+            pattern: '^[a-f0-9]{16,}$'
+            example: "1a4f6b0976cc66ba"
+        - name: Range
+          in: header
+          required: false
+          description: Byte range request for seeking
+          schema:
+            type: string
+            example: "bytes=0-1023"
+      responses:
+        '200':
+          description: Full audio file
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: "audio/mpeg"
+            Content-Length:
+              schema:
+                type: integer
+                example: 2458624
+            Accept-Ranges:
+              schema:
+                type: string
+                example: "bytes"
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=31536000, immutable"
+            ETag:
+              schema:
+                type: string
+                example: '"1a4f6b0976cc66ba-2458624"'
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: Partial content (byte range)
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: "audio/mpeg"
+            Content-Range:
+              schema:
+                type: string
+                example: "bytes 0-1023/2458624"
+            Content-Length:
+              schema:
+                type: integer
+                example: 1024
+            Accept-Ranges:
+              schema:
+                type: string
+                example: "bytes"
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=31536000, immutable"
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '304':
+          description: Not Modified (cached version still valid)
+          headers:
+            ETag:
+              schema:
+                type: string
+                example: '"1a4f6b0976cc66ba-2458624"'
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=31536000, immutable"
+        '400':
+          description: Invalid item_id format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Invalid item ID format"
+                details: "Item ID must be hexadecimal hash"
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+                details: "Please log in to access audio files"
+        '404':
+          description: Audio file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Audio not found"
+                details: "No audio file exists for this item"
+        '416':
+          description: Range not satisfiable
+          headers:
+            Content-Range:
+              schema:
+                type: string
+                example: "bytes */2458624"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Range not satisfiable"
+                details: "Requested byte range exceeds file size"
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Flask session cookie (set by @login_required)
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        details:
+          type: string
+          description: Additional error context
+
+  examples:
+    RangeRequest:
+      summary: Browser seeking to 30 seconds
+      description: |
+        Example Range header sent by browser when user seeks to 30 seconds
+        in a 2MB MP3 file (128kbps ~= 16KB/second → 30s ~= 480KB)
+      value:
+        Range: "bytes=491520-"
+
+    PartialResponse:
+      summary: Server response for range request
+      description: |
+        206 Partial Content response with Content-Range header indicating
+        the byte range being served and total file size
+      value:
+        status: 206
+        headers:
+          Content-Range: "bytes 491520-2458623/2458624"
+          Content-Length: "1967104"
+          Content-Type: "audio/mpeg"
+
+tags:
+  - name: Audio
+    description: Audio file serving endpoints

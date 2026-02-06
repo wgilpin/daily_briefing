@@ -1,23 +1,47 @@
 {
   "senders": {
     "simonw@substack.com": {
-      "parsing_prompt": "Extract ONLY the top 3 most important and substantial articles from this newsletter.\n\nFocus on:\n- Full articles with meaningful titles (not \"Note\", \"Quote\", \"Link\", or similar generic labels)\n- Articles that have detailed content and analysis\n- Prefer articles with links to full posts\n\nIgnore:\n- Brief notes, quotes, or short mentions\n- Sidebar content\n- Generic items like \"Note:\", \"Quote:\", or \"Link:\"\n\nReturn a JSON array with up to 3 items, each containing: date, title, a two paragraph blog-style post based on the article content, link (optional).\nIf there are fewer than 3 substantial articles, return only what's available.",
+      "parsing_prompt": "",
       "enabled": true,
       "created_at": "2026-01-09T12:06:48.461296Z"
+    },
+    "startswithabang+feature-articles@substack.com": {
+      "enabled": true,
+      "parsing_prompt": ""
+    },
+    "swyx@substack.com": {
+      "enabled": true,
+      "parsing_prompt": ""
+    },
+    "publishing@email.mckinsey.com": {
+      "enabled": true,
+      "parsing_prompt": ""
+    },
+    "semianalysis@substack.com": {
+      "enabled": true,
+      "parsing_prompt": ""
+    },
+    "news@alphasignal.ai": {
+      "enabled": true,
+      "parsing_prompt": ""
+    },
+    "dan@tldrnewsletter.com": {
+      "enabled": true,
+      "parsing_prompt": ""
     }
   },
-  "consolidation_prompt": "Create a consolidated newsletter digest from these items.\n\nGroup similar topics together and create a well-formatted markdown document.\nOrganize by topic and include all relevant information.\nUse clear headings and sections to make it easy to read.",
+  "consolidation_prompt": "",
   "retention_limit": 100,
   "days_lookback": 30,
   "max_workers": 10,
   "default_parsing_prompt": "Extract ONLY the top 3 most important and substantial articles from this newsletter.\n\nFocus on:\n- Full articles with meaningful titles (not \"Note\", \"Quote\", \"Link\", or similar generic labels)\n- Articles that have detailed content and analysis\n- Prefer articles with links to full posts\n\nIgnore:\n- Brief notes, quotes, or short mentions\n- Sidebar content\n- Generic items like \"Note:\", \"Quote:\", or \"Link:\"\n\nReturn a JSON array with up to 3 items, each containing: date, title, a two paragraph blog-style post based on the article content, link (optional).\nIf there are fewer than 3 substantial articles, return only what's available.",
-  "default_consolidation_prompt": "Create a consolidated newsletter digest from these items.\n\nGroup similar topics together and create a well-formatted markdown document.\nOrganize by topic and include all relevant information.\nUse clear headings and sections to make it easy to read.",
+  "default_consolidation_prompt": "Create a consolidated newsletter digest from these items.\n\nGroup similar topics together and create a well-formatted markdown document.\nOrganize by topic and include all relevant information.\nUse clear headings and sections to make it easy to read.\n\nIMPORTANT FOR RESEARCH PAPERS: When writing about research papers (items with 'authors' field), begin the content paragraph with a clear citation like 'A study by [first author] and colleagues...' or '[First author] et al. found that...' This ensures audio listeners understand which paper is being discussed.",
   "models": {
     "parsing": "gemini-2.5-flash",
     "consolidation": "gemini-2.5-flash"
   },
   "excluded_topics": [
     "SQL databases",
-    "test"
+    "movies"
   ]
 }
