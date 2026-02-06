@@ -28,7 +28,7 @@ class NewsletterConfig(BaseModel):
     model_config = ConfigDict(strict=False)
 
     senders: Dict[str, Dict[str, Any]]
-    consolidation_prompt: str
+    consolidation_prompt: str = Field(default="")  # Falls back to default_consolidation_prompt if empty
     retention_limit: int
     days_lookback: int
     max_workers: int

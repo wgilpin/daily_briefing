@@ -102,7 +102,14 @@ def feed():
 
     days_str = request.args.get("days", "1")
     days: Optional[int] = None
-    if days_str:
+    since_datetime = None
+
+    if days_str == "whats-new":
+        # Get items since the last digest was generated
+        from src.newsletter.storage import get_last_digest_timestamp
+        since_datetime = get_last_digest_timestamp()
+        days_str = "whats-new"  # Keep for template rendering
+    elif days_str:
         try:
             days = int(days_str)
         except ValueError:
@@ -131,6 +138,7 @@ def feed():
             limit=DEFAULT_PAGE_SIZE,
             offset=offset,
             days=days,
+            since=since_datetime,
         )
 
     return render_template(
@@ -169,7 +177,13 @@ def api_feed():
 
     days_str = request.args.get("days", "")
     days: Optional[int] = None
-    if days_str:
+    since_datetime = None
+
+    if days_str == "whats-new":
+        # Get items since the last digest was generated
+        from src.newsletter.storage import get_last_digest_timestamp
+        since_datetime = get_last_digest_timestamp()
+    elif days_str:
         try:
             days = int(days_str)
         except ValueError:
@@ -197,6 +211,7 @@ def api_feed():
             limit=DEFAULT_PAGE_SIZE,
             offset=offset,
             days=days,
+            since=since_datetime,
         )
 
     if not items:
@@ -241,7 +256,12 @@ def api_refresh():
         # Get days parameter from form data
         days_str = request.form.get("days", "")
         days_lookback: Optional[int] = None
-        if days_str:
+        use_whats_new = False
+
+        if days_str == "whats-new":
+            use_whats_new = True
+            days_lookback = None
+        elif days_str:
             try:
                 days_lookback = int(days_str)
             except ValueError:
@@ -269,7 +289,7 @@ def api_refresh():
             try:
                 from src.newsletter.config import load_config
                 from src.newsletter.consolidator import consolidate_newsletters
-                from src.newsletter.storage import get_recent_parsed_items, save_consolidated_digest
+                from src.newsletter.storage import save_consolidated_digest
                 import google.genai as genai
                 import os
 
@@ -279,11 +299,42 @@ def api_refresh():
                 config = load_config()
                 logger.info(f"Loaded config with {len(config.excluded_topics)} excluded topics: {config.excluded_topics}")
 
-                # Get recently parsed newsletter items (from the refresh period)
-                # Use the same days_lookback value used for refresh, or default to 1
-                consolidation_days = days_lookback if days_lookback is not None else 1
-                parsed_items = get_recent_parsed_items(None, days=consolidation_days)
-                logger.info(f"Retrieved {len(parsed_items)} parsed items from last {consolidation_days} day(s) for consolidation")
+                # Get ALL feed items (newsletters + zotero) for consolidation
+                from src.db.repository import Repository
+                repo = Repository()
+
+                if use_whats_new:
+                    # Get items since the last digest was generated
+                    from src.newsletter.storage import get_last_digest_timestamp
+                    since_timestamp = get_last_digest_timestamp()
+                    logger.info(f"What's New mode: last digest timestamp = {since_timestamp}")
+                    if since_timestamp:
+                        feed_items = repo.get_feed_items_since(since=since_timestamp, source_type=None)
+                        logger.info(f"Retrieved {len(feed_items)} feed items since last digest ({since_timestamp})")
+                    else:
+                        # No previous digest found, fall back to 1 day
+                        feed_items = repo.get_feed_items(days=1, source_type=None)
+                        logger.info(f"No previous digest found, retrieved {len(feed_items)} feed items from last 1 day")
+                else:
+                    # Use the same days_lookback value used for refresh, or default to 1
+                    consolidation_days = days_lookback if days_lookback is not None else 1
+                    feed_items = repo.get_feed_items(days=consolidation_days, source_type=None)
+                    logger.info(f"Retrieved {len(feed_items)} feed items from last {consolidation_days} day(s) for consolidation")
+
+                # Convert FeedItem objects to dict format expected by consolidator
+                parsed_items = []
+                for item in feed_items:
+                    item_dict = {
+                        "date": item.date.isoformat() if item.date else None,
+                        "title": item.title,
+                        "summary": item.summary or "",
+                        "link": item.link,
+                        "source_type": item.source_type,
+                    }
+                    # Include authors metadata for Zotero items
+                    if item.source_type == "zotero" and item.metadata.get("authors"):
+                        item_dict["authors"] = item.metadata["authors"]
+                    parsed_items.append(item_dict)
 
                 if parsed_items:
                     # Create LLM client
@@ -293,10 +344,13 @@ def api_refresh():
 
                     llm_client = genai.Client(api_key=gemini_api_key)
 
+                    # Use consolidation_prompt if set, otherwise fall back to default
+                    consolidation_prompt = config.consolidation_prompt or config.default_consolidation_prompt
+
                     # Consolidate with exclusions
                     consolidated_markdown = consolidate_newsletters(
                         parsed_items=parsed_items,
-                        prompt=config.consolidation_prompt,
+                        prompt=consolidation_prompt,
                         llm_client=llm_client,
                         model_name=config.models["consolidation"],
                         excluded_topics=config.excluded_topics  # PASS EXCLUSIONS HERE

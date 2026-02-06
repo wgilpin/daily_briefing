@@ -276,11 +276,13 @@ def _parse_single_newsletter(
                 sender_email = email_data.get("sender")
         
         # Get sender-specific prompt or use default
+        # Falls back to default_parsing_prompt if sender-specific one is empty/missing
         parsing_prompt = default_parsing_prompt
         if sender_email and sender_email in senders:
             sender_config = senders[sender_email]
-            if sender_config.get("parsing_prompt"):
-                parsing_prompt = sender_config["parsing_prompt"]
+            sender_prompt = sender_config.get("parsing_prompt", "").strip()
+            if sender_prompt:
+                parsing_prompt = sender_prompt
         
         # Parse with LLM
         logger.info(f"[{index}/{total_count}] Calling {model_name} for {message_id}...")

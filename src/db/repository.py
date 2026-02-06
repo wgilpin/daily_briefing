@@ -146,6 +146,75 @@ class Repository:
                 for row in rows
             ]
 
+    def get_feed_items_since(
+        self,
+        since: datetime,
+        source_type: Optional[str] = None,
+        limit: int = 1000,
+        offset: int = 0,
+    ) -> list[FeedItem]:
+        """Get feed items since a specific datetime.
+
+        Args:
+            since: Get items with item_date >= this datetime
+            source_type: Filter by source type (optional)
+            limit: Maximum items to return
+            offset: Number of items to skip
+
+        Returns:
+            List of FeedItem objects sorted by date descending
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                query = """
+                    SELECT id, source_type, source_id, title, item_date,
+                           summary, link, metadata, fetched_at
+                    FROM feed_items
+                    WHERE item_date >= %s
+                """
+                params: list = [since]
+
+                if source_type:
+                    query += " AND source_type = %s"
+                    params.append(source_type)
+
+                query += " ORDER BY item_date DESC LIMIT %s OFFSET %s"
+                params.extend([limit, offset])
+
+                logger.info(f"get_feed_items_since query: since={since}, source_type={source_type}, limit={limit}")
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+                logger.info(f"get_feed_items_since returned {len(rows)} rows")
+
+                # Also log what items exist for debugging
+                if len(rows) == 0 and source_type:
+                    cursor.execute(
+                        "SELECT COUNT(*), MIN(item_date), MAX(item_date) FROM feed_items WHERE source_type = %s",
+                        (source_type,)
+                    )
+                    debug_row = cursor.fetchone()
+                    if debug_row:
+                        count, min_date, max_date = debug_row
+                        logger.info(f"Debug: {source_type} has {count} total items, date range: {min_date} to {max_date}")
+
+            return [
+                FeedItem(
+                    id=row[0],
+                    source_type=row[1],
+                    source_id=row[2],
+                    title=row[3],
+                    date=row[4],
+                    summary=row[5],
+                    link=row[6],
+                    metadata=row[7] if isinstance(row[7], dict) else json.loads(row[7] or "{}"),
+                    fetched_at=row[8],
+                )
+                for row in rows
+            ]
+
     def delete_feed_item(self, item_id: str) -> None:
         """Delete a feed item by ID.
 

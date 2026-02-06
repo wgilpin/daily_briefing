@@ -7,6 +7,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-02
 - PostgreSQL (Coolify) + config/senders.json (file-based configuration) (005-topic-exclusion)
 - Python 3.13+ + psycopg2 (PostgreSQL driver), hashlib (SHA-256), existing Flask/HTMX stack (006-newsletter-db-consolidation)
 - PostgreSQL (Coolify) - existing feed_items table + new processed_emails table (006-newsletter-db-consolidation)
+- Python 3.13+ + ElevenLabs Python SDK, existing Flask stack (007-newsletter-audio)
+- File-based (MP3 files in data/output/, credentials in .env) (007-newsletter-audio)
 
 - Python 3.13+ (existing project requirement) (004-user-login)
 
@@ -26,10 +28,10 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.13+ (existing project requirement): Follow standard conventions
 
 ## Recent Changes
+- 007-newsletter-audio: Added Python 3.13+ + ElevenLabs Python SDK, existing Flask stack
 
 - 006-newsletter-db-consolidation: Completed newsletter database consolidation - migrated from SQLite to PostgreSQL with thread-safe connection pooling, SHA-256 stable IDs, and comprehensive test coverage
 - 005-topic-exclusion: Added Python 3.13+ + Flask, HTMX, Google Gemini (google-genai), Pydantic
-- 004-user-login: Added Python 3.13+ (existing project requirement)
 
 ## Newsletter Database Consolidation (006) - Implementation Notes
 

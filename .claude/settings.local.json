@@ -31,7 +31,8 @@
       "Bash(tasklist:*)",
       "Bash(test:*)",
       "Bash(.specify/scripts/bash/create-new-feature.sh:*)",
-      "Bash(.specify/scripts/bash/update-agent-context.sh:*)"
+      "Bash(.specify/scripts/bash/update-agent-context.sh:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
