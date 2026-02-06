@@ -1,17 +1,21 @@
 """Unit tests for TTS service."""
 
+import io
 import pytest
+import numpy as np
 from unittest.mock import Mock
-from src.services.audio.tts_service import ElevenLabsTTSService
-from src.models.audio_models import AudioConfig, TTSRequest, VoiceSettings
+from src.services.audio.tts_service import KokoroTTSService
+from src.models.audio_models import AudioConfig, TTSRequest
 
 
 @pytest.fixture
-def mock_elevenlabs_client(mocker):
-    """Mock ElevenLabs client."""
+def mock_kokoro_pipeline(mocker):
+    """Mock Kokoro pipeline."""
     mock = mocker.Mock()
-    # Mock text_to_speech.convert to return an iterable of audio bytes
-    mock.text_to_speech.convert.return_value = [b"\xff\xfb\x90\x00" + b"\x00" * 100]
+    # Mock pipeline to return generator of (graphemes, phonemes, audio) tuples
+    # Audio is a numpy array at 24kHz
+    audio_data = np.random.rand(24000).astype(np.float32)  # 1 second of audio
+    mock.return_value = [(["test"], ["test"], audio_data)]
     return mock
 
 
@@ -19,43 +23,61 @@ def mock_elevenlabs_client(mocker):
 def audio_config():
     """Create test audio configuration."""
     return AudioConfig(
-        male_voice_id="test_male_voice",
-        female_voice_id="test_female_voice",
-        model_id="test_model",
-        api_timeout=30,
+        male_voice="bm_george",
+        female_voice="bf_emma",
     )
 
 
-def test_convert_to_speech_success(mock_elevenlabs_client, audio_config):
+def test_convert_to_speech_success(mocker, mock_kokoro_pipeline, audio_config):
     """Test successful TTS conversion."""
-    service = ElevenLabsTTSService(api_key="test_key", config=audio_config)
-    service._client = mock_elevenlabs_client
+    # Mock KPipeline class
+    mocker.patch('src.services.audio.tts_service.KPipeline', return_value=mock_kokoro_pipeline)
+
+    service = KokoroTTSService(config=audio_config)
 
     request = TTSRequest(
         text="Test content for speech conversion",
-        voice_id="test_voice",
-        model_id="test_model",
-        voice_settings=VoiceSettings(),
+        voice_name="bm_george",
     )
 
     result = service.convert_to_speech(request)
 
-    expected_bytes = b"".join(mock_elevenlabs_client.text_to_speech.convert.return_value)
-    assert result.audio_bytes == expected_bytes
-    assert result.voice_id == "test_voice"
+    assert result.voice_name == "bm_george"
     assert len(result.audio_bytes) > 0
-    mock_elevenlabs_client.text_to_speech.convert.assert_called_once()
+    # Verify it's WAV format (starts with RIFF header)
+    assert result.audio_bytes.startswith(b'RIFF')
+    mock_kokoro_pipeline.assert_called_once_with("Test content for speech conversion", voice="bm_george")
 
 
-def test_health_check_success(mock_elevenlabs_client, audio_config):
-    """Test successful health check."""
-    service = ElevenLabsTTSService(api_key="test_key", config=audio_config)
-    service._client = mock_elevenlabs_client
+def test_convert_to_speech_male_voice(mocker, mock_kokoro_pipeline, audio_config):
+    """Test TTS with male voice."""
+    mocker.patch('src.services.audio.tts_service.KPipeline', return_value=mock_kokoro_pipeline)
 
-    # Mock voices API response
-    mock_voices = Mock()
-    mock_voices.voices = [Mock(voice_id="test_voice_1")]
-    mock_elevenlabs_client.voices.get_all.return_value = mock_voices
+    service = KokoroTTSService(config=audio_config)
 
-    assert service.health_check() is True
-    mock_elevenlabs_client.voices.get_all.assert_called_once()
+    request = TTSRequest(
+        text="Male voice test",
+        voice_name="bm_george",
+    )
+
+    result = service.convert_to_speech(request)
+
+    assert result.voice_gender == "male"
+    assert result.voice_name == "bm_george"
+
+
+def test_convert_to_speech_female_voice(mocker, mock_kokoro_pipeline, audio_config):
+    """Test TTS with female voice."""
+    mocker.patch('src.services.audio.tts_service.KPipeline', return_value=mock_kokoro_pipeline)
+
+    service = KokoroTTSService(config=audio_config)
+
+    request = TTSRequest(
+        text="Female voice test",
+        voice_name="bf_emma",
+    )
+
+    result = service.convert_to_speech(request)
+
+    assert result.voice_gender == "female"
+    assert result.voice_name == "bf_emma"

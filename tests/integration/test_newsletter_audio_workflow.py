@@ -43,13 +43,6 @@ def test_save_consolidated_digest_triggers_audio(
     tmp_path, sample_newsletter_content, mock_audio_result, mocker
 ):
     """Test that saving a newsletter automatically triggers audio generation."""
-    # Mock environment variables
-    mocker.patch.dict("os.environ", {
-        "ELEVENLABS_API_KEY": "test_key",
-        "ELEVENLABS_MALE_VOICE_ID": "male_voice",
-        "ELEVENLABS_FEMALE_VOICE_ID": "female_voice"
-    })
-
     # Mock audio generation
     mock_generate = mocker.patch(
         "src.services.audio.audio_generator.generate_audio_for_newsletter",
@@ -74,17 +67,10 @@ def test_audio_failure_does_not_block_newsletter(
     tmp_path, sample_newsletter_content, mocker
 ):
     """Test that audio generation failure doesn't prevent newsletter saving."""
-    # Mock environment variables
-    mocker.patch.dict("os.environ", {
-        "ELEVENLABS_API_KEY": "test_key",
-        "ELEVENLABS_MALE_VOICE_ID": "male_voice",
-        "ELEVENLABS_FEMALE_VOICE_ID": "female_voice"
-    })
-
     # Mock audio generation to fail
     mocker.patch(
         "src.services.audio.audio_generator.generate_audio_for_newsletter",
-        side_effect=Exception("API error")
+        side_effect=Exception("Generation error")
     )
 
     # Save newsletter - should succeed despite audio failure
@@ -105,13 +91,6 @@ def test_multiple_newsletters_each_get_audio(
     tmp_path, sample_newsletter_content, mock_audio_result, mocker
 ):
     """Test that multiple newsletters each get their own audio file."""
-    # Mock environment variables
-    mocker.patch.dict("os.environ", {
-        "ELEVENLABS_API_KEY": "test_key",
-        "ELEVENLABS_MALE_VOICE_ID": "male_voice",
-        "ELEVENLABS_FEMALE_VOICE_ID": "female_voice"
-    })
-
     # Mock audio generation
     mock_generate = mocker.patch(
         "src.services.audio.audio_generator.generate_audio_for_newsletter",

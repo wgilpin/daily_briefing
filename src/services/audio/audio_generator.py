@@ -15,7 +15,7 @@ from src.models.audio_models import (
     TTSRequest,
 )
 from src.services.audio.markdown_parser import parse_newsletter_items
-from src.services.audio.tts_service import ElevenLabsTTSService
+from src.services.audio.tts_service import KokoroTTSService
 from src.services.audio import TTSError
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def get_cached_audio(link: str | None, voice_id: str) -> bytes | None:
         return None  # Can't cache without stable identifier
 
     cache_key = get_content_hash(link, voice_id)
-    cache_file = CACHE_DIR / f"{cache_key}.mp3"
+    cache_file = CACHE_DIR / f"{cache_key}.wav"
 
     if cache_file.exists():
         logger.info(f"Cache hit for link {link[:50]}...")
@@ -88,7 +88,7 @@ def cache_audio(link: str | None, voice_id: str, audio_bytes: bytes) -> None:
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_key = get_content_hash(link, voice_id)
-    cache_file = CACHE_DIR / f"{cache_key}.mp3"
+    cache_file = CACHE_DIR / f"{cache_key}.wav"
 
     cache_file.write_bytes(audio_bytes)
     logger.info(f"Cached audio for link: {link[:50]}...")
@@ -116,8 +116,8 @@ def concatenate_audio_segments(segments: list[AudioSegment]) -> bytes:
         # Save each segment to a temp file and normalize with ffmpeg
         normalized_files = []
         for i, segment in enumerate(segments):
-            input_file = tmpdir_path / f"segment_{i:03d}_input.mp3"
-            output_file = tmpdir_path / f"segment_{i:03d}_normalized.mp3"
+            input_file = tmpdir_path / f"segment_{i:03d}_input.wav"
+            output_file = tmpdir_path / f"segment_{i:03d}_normalized.wav"
 
             # Write segment to temp file
             input_file.write_bytes(segment.audio_bytes)
@@ -206,22 +206,10 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
     try:
         # Load configuration
         config = AudioConfig.from_env()
-        api_key = os.getenv("ELEVENLABS_API_KEY")
 
-        if not api_key:
-            error_message = "ELEVENLABS_API_KEY not found in environment"
-            logger.error(error_message)
-            return AudioGenerationResult(
-                success=False,
-                total_items=0,
-                items_processed=0,
-                error_message=error_message,
-                duration_seconds=time.time() - start_time,
-            )
-
-        # Initialize TTS service
-        logger.info("Initializing TTS service")
-        tts_service = ElevenLabsTTSService(api_key=api_key, config=config)
+        # Initialize TTS service (Kokoro runs locally, no API key needed)
+        logger.info("Initializing Kokoro TTS service")
+        tts_service = KokoroTTSService(config=config)
 
         # Parse newsletter items
         logger.info(f"Parsing newsletter: {markdown_path}")
@@ -245,16 +233,16 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
         for item in items:
             try:
                 # Select voice based on item number
-                voice_id = (
-                    config.male_voice_id
+                voice_name = (
+                    config.male_voice
                     if item.voice_gender == "male"
-                    else config.female_voice_id
+                    else config.female_voice
                 )
 
                 text = item.to_speech_text()
 
                 # Check cache first (using article link for stability)
-                cached_audio = get_cached_audio(item.link, voice_id)
+                cached_audio = get_cached_audio(item.link, voice_name)
 
                 if cached_audio:
                     # Use cached audio
@@ -264,7 +252,7 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
                     segment = AudioSegment(
                         item_number=item.item_number,
                         audio_bytes=cached_audio,
-                        voice_id=voice_id,
+                        voice_name=voice_name,
                         voice_gender=item.voice_gender,
                     )
                 else:
@@ -275,14 +263,13 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
                     )
                     request = TTSRequest(
                         text=text,
-                        voice_id=voice_id,
-                        model_id=config.model_id,
+                        voice_name=voice_name,
                     )
                     segment = tts_service.convert_to_speech(request)
                     segment.item_number = item.item_number
 
                     # Cache the audio (using article link for stability)
-                    cache_audio(item.link, voice_id, segment.audio_bytes)
+                    cache_audio(item.link, voice_name, segment.audio_bytes)
 
                 segments.append(segment)
                 items_processed += 1

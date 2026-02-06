@@ -1,111 +1,96 @@
-"""ElevenLabs text-to-speech service implementation."""
+"""Kokoro text-to-speech service implementation."""
 
+import io
 import logging
-from elevenlabs import ElevenLabs, VoiceSettings as ElevenLabsVoiceSettings
+import soundfile as sf
+from kokoro import KPipeline
 
 from src.models.audio_models import AudioConfig, TTSRequest, AudioSegment
 from src.services.audio import (
-    TTSAPIError,
-    TTSTimeoutError,
-    TTSRateLimitError,
+    TTSGenerationError,
     TTSValidationError,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class ElevenLabsTTSService:
-    """ElevenLabs text-to-speech service implementation."""
+class KokoroTTSService:
+    """Kokoro text-to-speech service implementation (local GPU)."""
 
-    def __init__(self, api_key: str, config: AudioConfig):
+    def __init__(self, config: AudioConfig):
         """
-        Initialize service with API credentials and configuration.
+        Initialize service with configuration.
 
         Args:
-            api_key: ElevenLabs API key
-            config: Audio configuration
+            config: Audio configuration (voice names)
         """
-        self.api_key = api_key
         self.config = config
-        self._client = ElevenLabs(api_key=api_key)
+        # Initialize pipeline once for British English
+        try:
+            self._pipeline = KPipeline(lang_code='b')
+            logger.info("Kokoro TTS pipeline initialized (British English)")
+        except Exception as e:
+            logger.error(f"Failed to initialize Kokoro pipeline: {e}")
+            raise TTSGenerationError(f"Pipeline initialization failed: {e}") from e
 
     def convert_to_speech(self, request: TTSRequest) -> AudioSegment:
         """
-        Convert text to speech using ElevenLabs API.
+        Convert text to speech using Kokoro TTS.
 
         Args:
             request: TTS request with text and voice configuration
 
         Returns:
-            AudioSegment with generated audio bytes
+            AudioSegment with generated WAV audio bytes
 
         Raises:
-            TTSAPIError: API call failed
-            TTSTimeoutError: API call timed out
-            TTSRateLimitError: Rate limit exceeded
+            TTSGenerationError: Audio generation failed
             TTSValidationError: Invalid request parameters
         """
         try:
-            # Convert our VoiceSettings to ElevenLabs VoiceSettings
-            voice_settings = ElevenLabsVoiceSettings(
-                stability=request.voice_settings.stability,
-                similarity_boost=request.voice_settings.similarity_boost,
-            )
+            # Validate text length
+            if not (1 <= len(request.text) <= 5000):
+                raise TTSValidationError(
+                    f"Text length {len(request.text)} outside valid range 1-5000"
+                )
 
-            # Call ElevenLabs API
-            audio_generator = self._client.text_to_speech.convert(
-                text=request.text,
-                voice_id=request.voice_id,
-                model_id=request.model_id,
-                voice_settings=voice_settings,
-            )
+            # Call Kokoro pipeline
+            logger.debug(f"Generating audio for {len(request.text)} characters with voice {request.voice_name}")
+            generator = self._pipeline(request.text, voice=request.voice_name)
 
-            # Collect audio bytes from generator
-            audio_bytes = b"".join(audio_generator)
+            # Collect audio data from generator
+            audio_chunks = []
+            for graphemes, phonemes, audio in generator:
+                audio_chunks.append(audio)
 
-            # Determine voice gender based on voice_id
+            if not audio_chunks:
+                raise TTSGenerationError("No audio generated from pipeline")
+
+            # Concatenate all audio chunks
+            import numpy as np
+            full_audio = np.concatenate(audio_chunks)
+
+            # Convert numpy audio to WAV bytes in memory
+            wav_buffer = io.BytesIO()
+            sf.write(wav_buffer, full_audio, 24000, format='WAV')
+            audio_bytes = wav_buffer.getvalue()
+
+            # Determine voice gender based on voice_name
             voice_gender = (
                 "male"
-                if request.voice_id == self.config.male_voice_id
+                if request.voice_name == self.config.male_voice
                 else "female"
             )
 
             return AudioSegment(
                 item_number=1,  # Will be updated by caller
                 audio_bytes=audio_bytes,
-                voice_id=request.voice_id,
+                voice_name=request.voice_name,
                 voice_gender=voice_gender,
             )
 
-        except TimeoutError as e:
-            logger.error(f"TTS API timeout: {e}")
-            raise TTSTimeoutError(f"API call timed out: {e}") from e
-
+        except TTSValidationError:
+            raise
         except Exception as e:
-            # Check for rate limit (HTTP 429)
-            if hasattr(e, "status_code") and e.status_code == 429:
-                logger.warning(f"TTS rate limit exceeded: {e}")
-                raise TTSRateLimitError(f"Rate limit exceeded: {e}") from e
-
-            # Check for validation errors
-            if isinstance(e, ValueError):
-                logger.error(f"TTS validation error: {e}")
-                raise TTSValidationError(f"Invalid request parameters: {e}") from e
-
-            logger.error(f"TTS API error: {e}")
-            raise TTSAPIError(f"API call failed: {e}") from e
-
-    def health_check(self) -> bool:
-        """
-        Check if TTS service is available.
-
-        Returns:
-            True if service is operational, False otherwise
-        """
-        try:
-            # Try to fetch voices to verify API connectivity
-            voices = self._client.voices.get_all()
-            return len(voices.voices) > 0
-        except Exception as e:
-            logger.error(f"Health check failed: {e}")
-            return False
+            logger.error(f"TTS generation error: {e}", exc_info=True)
+            raise TTSGenerationError(f"Audio generation failed: {e}") from e
