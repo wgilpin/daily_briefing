@@ -30,8 +30,8 @@ def serve_audio(item_id: str):
     if not item_id.isalnum() or len(item_id) < 16:
         abort(400, "Invalid item ID format")
 
-    # Map item_id to audio file
-    audio_path = Path('data/audio_cache') / f"{item_id}.mp3"
+    # Map item_id to audio file (WAV format from Kokoro TTS)
+    audio_path = Path('data/audio_cache') / f"{item_id}.wav"
 
     if not audio_path.exists():
         abort(404, "Audio not found")
@@ -49,7 +49,7 @@ def serve_audio(item_id: str):
         # T012: HTTP 200 full file support
         response = send_file(
             audio_path,
-            mimetype='audio/mpeg',
+            mimetype='audio/wav',
             as_attachment=False,
             conditional=True  # Enable ETag/Last-Modified
         )
@@ -76,7 +76,7 @@ def serve_audio(item_id: str):
 
     # Build 206 response
     response = make_response(data, 206)
-    response.headers['Content-Type'] = 'audio/mpeg'
+    response.headers['Content-Type'] = 'audio/wav'
     response.headers['Content-Range'] = f'bytes {start}-{end}/{file_size}'
     response.headers['Content-Length'] = str(length)
     response.headers.update(cache_headers)

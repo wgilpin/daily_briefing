@@ -30,8 +30,8 @@
      hx-preserve
      x-data="audioPlayerState()"
      class="audio-player-bar"
-     style="display: none;"
-     :style="currentItem ? 'display: flex;' : 'display: none;'">
+     x-show="itemCount > 0"
+     style="display: none;">
   <audio id="global-audio-player"
          @play="isPlaying = true"
          @pause="isPlaying = false"
@@ -39,7 +39,6 @@
   </audio>
   <div class="player-controls">
     <button @click="playPause()"
-            :disabled="!currentItem"
             :aria-label="isPlaying ? 'Pause' : 'Play'"
             class="btn-play-pause">
       <span x-show="!isPlaying">▶ Play</span>
@@ -490,6 +489,18 @@ select {
 // Debug: Log when script loads
 console.log('Audio player script loaded');
 
+// Global playItem function accessible from item buttons
+function playItem(itemId, audioPath, title) {
+  // Get the Alpine.js component instance
+  const playerBar = document.getElementById('audio-player-bar');
+  if (playerBar && playerBar._x_dataStack) {
+    const alpineData = playerBar._x_dataStack[0];
+    if (alpineData && alpineData.playItem) {
+      alpineData.playItem(itemId, audioPath, title);
+    }
+  }
+}
+
 // Alpine.js component for audio player state
 function audioPlayerState() {
   console.log('audioPlayerState() called - Alpine.js component initializing');
@@ -499,8 +510,35 @@ function audioPlayerState() {
     currentIndex: -1,
     itemCount: 0,
 
+    init() {
+      // Count audio items on initialization
+      this.updateItemCount();
+    },
+
+    updateItemCount() {
+      const items = document.querySelectorAll('[data-audio-path]');
+      this.itemCount = items.length;
+      console.log(`Audio player: ${this.itemCount} items with audio`);
+    },
+
     playPause() {
       const audio = document.getElementById('global-audio-player');
+
+      // If no item is loaded, start playing the first item
+      if (!this.currentItem) {
+        const items = document.querySelectorAll('[data-audio-path]');
+        if (items.length > 0) {
+          const firstItem = items[0];
+          this.playItem(
+            firstItem.dataset.itemId,
+            firstItem.dataset.audioPath,
+            firstItem.querySelector('.feed-item-title')?.textContent || 'Unknown'
+          );
+        }
+        return;
+      }
+
+      // Otherwise toggle play/pause
       if (this.isPlaying) {
         audio.pause();
       } else {
@@ -546,10 +584,10 @@ function audioPlayerState() {
       const audio = document.getElementById('global-audio-player');
       const items = document.querySelectorAll('[data-audio-path]');
 
+      this.updateItemCount();
       this.currentIndex = Array.from(items).findIndex(
         el => el.dataset.itemId === itemId
       );
-      this.itemCount = items.length;
 
       this.currentItem = {
         id: itemId,

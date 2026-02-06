@@ -53,10 +53,12 @@ class FeedItem(BaseModel):
     def has_audio(self) -> bool:
         """Check if audio file exists for this item.
 
+        Audio files are named {source_id}.wav
+
         Returns:
-            bool: True if MP3 file exists in data/audio_cache/, False otherwise
+            bool: True if WAV file exists in data/audio_cache/, False otherwise
         """
-        audio_file = Path(f"data/audio_cache/{self.source_id}.mp3")
+        audio_file = Path(f"data/audio_cache/{self.source_id}.wav")
         return audio_file.exists()
 
     @computed_field
@@ -67,4 +69,6 @@ class FeedItem(BaseModel):
         Returns:
             str | None: URL path to audio file, or None if no audio exists
         """
-        return f"/audio/{self.source_id}" if self.has_audio else None
+        if not self.has_audio:
+            return None
+        return f"/audio/{self.source_id}"

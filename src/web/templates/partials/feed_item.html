@@ -1,14 +1,15 @@
+<!-- DEBUG: has_audio={{ item.has_audio }}, audio_path={{ item.audio_path }}, link={{ item.link[:50] if item.link else 'None' }}... -->
 <article class="feed-item"
          data-source="{{ item.source_type }}"
          data-item-id="{{ item.source_id }}"
-         {% if item.has_audio %}data-audio-path="/audio/{{ item.source_id }}"{% endif %}>
+         {% if item.has_audio %}data-audio-path="{{ item.audio_path }}"{% endif %}>
     <div class="feed-item-header">
         <div class="header-left">
             <span class="source-badge {{ item.source_type }}">{{ item.source_type|capitalize }}</span>
             <time datetime="{{ item.date.isoformat() }}">{{ item.date.strftime('%Y-%m-%d') }}</time>
         </div>
         {% if item.has_audio %}
-        <button @click="playItem('{{ item.source_id }}', '/audio/{{ item.source_id }}', '{{ item.title|replace("'", "\\'") }}')"
+        <button onclick="playItem('{{ item.source_id }}', '{{ item.audio_path }}', '{{ item.title|replace("'", "\\'") }}')"
                 class="item-play-btn"
                 aria-label="Play audio for {{ item.title }}">
           ▶ Listen

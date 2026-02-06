@@ -24,16 +24,18 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = Path("data/audio_cache")
 
 
-def get_content_hash(link: str | None, voice_id: str) -> str:
+def get_content_hash(link: str | None, voice_id: str, title: str | None = None, date: str | None = None) -> str:
     """
-    Generate a hash for article link + voice combination.
+    Generate a hash for article identification + voice combination.
 
     Uses article link (if available) for stable caching across LLM regenerations.
-    Falls back to content hash if link is not available.
+    Falls back to title+date if link is not available.
 
     Args:
-        link: Article URL (preferred) or None to use content hash fallback
+        link: Article URL (preferred)
         voice_id: Voice ID used
+        title: Article title (fallback if no link)
+        date: Article date in YYYY-MM-DD format (fallback if no link)
 
     Returns:
         16-character hash string
@@ -41,57 +43,57 @@ def get_content_hash(link: str | None, voice_id: str) -> str:
     if link:
         # Use stable link for caching (survives LLM rewrites)
         content = f"{link}:{voice_id}"
+    elif title and date:
+        # Fallback: use title+date for items without links
+        content = f"{title}:{date}:{voice_id}"
     else:
-        # Fallback: generate random hash (no caching benefit)
+        # Last resort: generate random hash (no caching benefit)
         import time
         content = f"nocache:{time.time()}:{voice_id}"
 
     return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
-def get_cached_audio(link: str | None, voice_id: str) -> bytes | None:
+def get_cached_audio(link: str | None, voice_id: str, title: str | None = None, date: str | None = None) -> bytes | None:
     """
-    Retrieve cached audio for given article link and voice.
+    Retrieve cached audio for given article.
 
     Args:
         link: Article URL (for cache stability)
         voice_id: Voice ID used
+        title: Article title (fallback if no link)
+        date: Article date in YYYY-MM-DD format (fallback if no link)
 
     Returns:
-        Audio bytes if cached, None otherwise
+        Audio bytes (WAV) if cached, None otherwise
     """
-    if not link:
-        return None  # Can't cache without stable identifier
-
-    cache_key = get_content_hash(link, voice_id)
+    cache_key = get_content_hash(link, voice_id, title, date)
     cache_file = CACHE_DIR / f"{cache_key}.wav"
 
     if cache_file.exists():
-        logger.info(f"Cache hit for link {link[:50]}...")
+        logger.info(f"Cache hit for {title or link[:50] if link else 'unknown'}...")
         return cache_file.read_bytes()
 
     return None
 
 
-def cache_audio(link: str | None, voice_id: str, audio_bytes: bytes) -> None:
+def cache_audio(link: str | None, voice_id: str, audio_bytes: bytes, title: str | None = None, date: str | None = None) -> None:
     """
-    Cache audio for given article link and voice.
+    Cache audio for given article.
 
     Args:
         link: Article URL (for cache stability)
         voice_id: Voice ID used
-        audio_bytes: Audio data to cache
+        audio_bytes: Audio data to cache (WAV format)
+        title: Article title (fallback if no link)
+        date: Article date in YYYY-MM-DD format (fallback if no link)
     """
-    if not link:
-        logger.warning("No link provided - skipping cache")
-        return
-
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache_key = get_content_hash(link, voice_id)
+    cache_key = get_content_hash(link, voice_id, title, date)
     cache_file = CACHE_DIR / f"{cache_key}.wav"
 
     cache_file.write_bytes(audio_bytes)
-    logger.info(f"Cached audio for link: {link[:50]}...")
+    logger.info(f"Cached audio (WAV) for {title or link[:50] if link else 'unknown'}...")
 
 
 def concatenate_audio_segments(segments: list[AudioSegment]) -> bytes:
@@ -218,6 +220,19 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
         items = parse_newsletter_items(markdown_path)
         total_items = len(items)
 
+        # Extract date from filename: digest_20260206_HHMMSS_ffffff.md
+        digest_date = None
+        if isinstance(markdown_path, Path):
+            filename = markdown_path.stem
+            parts = filename.split("_")
+            if len(parts) >= 2 and parts[0] == "digest":
+                try:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(parts[1], "%Y%m%d")
+                    digest_date = date_obj.strftime("%Y-%m-%d")
+                except ValueError:
+                    logger.warning(f"Could not parse date from filename: {filename}")
+
         if total_items == 0:
             error_message = "No items found in newsletter"
             logger.warning(error_message)
@@ -229,7 +244,7 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
                 duration_seconds=time.time() - start_time,
             )
 
-        logger.info(f"Generating audio for {total_items} items")
+        logger.info(f"Generating audio for {total_items} items (date: {digest_date or 'unknown'})")
 
         # Generate audio for each item
         for item in items:
@@ -243,8 +258,8 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
 
                 text = item.to_speech_text()
 
-                # Check cache first (using article link for stability)
-                cached_audio = get_cached_audio(item.link, voice_name)
+                # Check cache first (using article link or title+date fallback)
+                cached_audio = get_cached_audio(item.link, voice_name, item.title, digest_date)
 
                 if cached_audio:
                     # Use cached audio
@@ -270,8 +285,8 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
                     segment = tts_service.convert_to_speech(request)
                     segment.item_number = item.item_number
 
-                    # Cache the audio (using article link for stability)
-                    cache_audio(item.link, voice_name, segment.audio_bytes)
+                    # Cache the audio (using article link or title+date fallback)
+                    cache_audio(item.link, voice_name, segment.audio_bytes, item.title, digest_date)
 
                 segments.append(segment)
                 items_processed += 1
