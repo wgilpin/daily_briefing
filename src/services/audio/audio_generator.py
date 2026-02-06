@@ -155,7 +155,7 @@ def concatenate_audio_segments(segments: list[AudioSegment]) -> bytes:
                 file_str = str(file_path).replace("\\", "/")
                 f.write(f"file '{file_str}'\n")
 
-        # Concatenate all normalized segments
+        # Concatenate all normalized segments and encode to MP3
         output_file = tmpdir_path / "combined.mp3"
         try:
             subprocess.run(
@@ -167,8 +167,10 @@ def concatenate_audio_segments(segments: list[AudioSegment]) -> bytes:
                     "0",
                     "-i",
                     str(concat_file),
-                    "-c",
-                    "copy",  # Copy codec, no re-encoding
+                    "-c:a",
+                    "libmp3lame",  # Encode to MP3
+                    "-b:a",
+                    "128k",  # 128kbps bitrate
                     "-y",
                     str(output_file),
                 ],
