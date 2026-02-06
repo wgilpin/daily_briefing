@@ -109,7 +109,13 @@ class NewsletterSource:
 
         logger.info(f"Parsed {parse_result['emails_parsed']} newsletters")
 
-        # Step 4: Fetch items from PostgreSQL and return only NEW items
+        # Step 4: Generate audio for any items missing audio files
+        logger.info("Step 4: Generating audio for items")
+        from src.services.audio.generate_missing_audio import generate_missing_audio_for_feed_items
+        audio_result = generate_missing_audio_for_feed_items()
+        logger.info(f"Generated audio for {audio_result['generated']} items (skipped {audio_result['skipped']} existing)")
+
+        # Step 5: Fetch items from PostgreSQL and return only NEW items
         all_items = repo.get_feed_items(source_type="newsletter", limit=1000)
         new_items = [item for item in all_items if item.id not in items_before]
 
