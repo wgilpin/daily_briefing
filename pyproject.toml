@@ -21,7 +21,8 @@ dependencies = [
     "pydantic>=2.6.0",
     "flask-login>=0.6.3",
     "passlib[argon2]>=1.7.4",
-    "elevenlabs>=2.34.0",
+    "kokoro>=0.9.4",
+    "soundfile>=0.13.1",
 ]
 
 [project.optional-dependencies]

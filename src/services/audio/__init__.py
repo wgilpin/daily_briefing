@@ -9,20 +9,8 @@ class TTSError(Exception):
     pass
 
 
-class TTSAPIError(TTSError):
-    """API call failed (server error, auth failure)."""
-
-    pass
-
-
-class TTSTimeoutError(TTSError):
-    """API call timed out."""
-
-    pass
-
-
-class TTSRateLimitError(TTSError):
-    """Rate limit exceeded."""
+class TTSGenerationError(TTSError):
+    """Audio generation failed (local processing error)."""
 
     pass
 

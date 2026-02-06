@@ -10,50 +10,26 @@ from pydantic import BaseModel, ConfigDict, Field
 class AudioConfig(BaseModel):
     """Configuration for audio generation from newsletter content."""
 
-    male_voice_id: str = Field(
-        default="ErXwobaYiN019PkySvjV",  # Antoni
-        description="ElevenLabs voice ID for male voice",
+    male_voice: str = Field(
+        default="bm_george",
+        description="Kokoro voice name for male voice (British English)",
     )
-    female_voice_id: str = Field(
-        default="21m00Tcm4TlvDq8ikWAM",  # Rachel
-        description="ElevenLabs voice ID for female voice",
-    )
-    model_id: str = Field(
-        default="eleven_monolingual_v1", description="ElevenLabs model identifier"
-    )
-    output_format: Literal["mp3_44100_128"] = Field(
-        default="mp3_44100_128", description="Audio format: MP3 at 44.1kHz, 128kbps"
-    )
-    stability: float = Field(
-        default=0.5,
-        ge=0.0,
-        le=1.0,
-        description="Voice stability (0=varied, 1=consistent)",
-    )
-    similarity_boost: float = Field(
-        default=0.75, ge=0.0, le=1.0, description="Voice clarity enhancement"
-    )
-    api_timeout: int = Field(
-        default=30, gt=0, description="Timeout per TTS API call in seconds"
+    female_voice: str = Field(
+        default="bf_emma",
+        description="Kokoro voice name for female voice (British English)",
     )
 
     @classmethod
     def from_env(cls) -> "AudioConfig":
         """Load configuration from environment variables with defaults."""
         return cls(
-            male_voice_id=os.getenv(
-                "ELEVENLABS_MALE_VOICE_ID",
-                cls.model_fields["male_voice_id"].default,
+            male_voice=os.getenv(
+                "KOKORO_MALE_VOICE",
+                cls.model_fields["male_voice"].default,
             ),
-            female_voice_id=os.getenv(
-                "ELEVENLABS_FEMALE_VOICE_ID",
-                cls.model_fields["female_voice_id"].default,
-            ),
-            model_id=os.getenv("ELEVENLABS_MODEL", cls.model_fields["model_id"].default),
-            api_timeout=int(
-                os.getenv(
-                    "ELEVENLABS_TIMEOUT", str(cls.model_fields["api_timeout"].default)
-                )
+            female_voice=os.getenv(
+                "KOKORO_FEMALE_VOICE",
+                cls.model_fields["female_voice"].default,
             ),
         )
 
@@ -82,26 +58,13 @@ class NewsletterItem(BaseModel):
         return self.content
 
 
-class VoiceSettings(BaseModel):
-    """ElevenLabs voice settings for fine-tuning."""
-
-    stability: float = Field(default=0.5, ge=0.0, le=1.0)
-    similarity_boost: float = Field(default=0.75, ge=0.0, le=1.0)
-
-
 class TTSRequest(BaseModel):
-    """Request for converting text to speech via ElevenLabs API."""
+    """Request for converting text to speech via Kokoro TTS."""
 
     text: str = Field(
         ..., min_length=1, max_length=5000, description="Text to convert to speech"
     )
-    voice_id: str = Field(..., description="ElevenLabs voice ID")
-    model_id: str = Field(
-        default="eleven_monolingual_v1", description="ElevenLabs model identifier"
-    )
-    voice_settings: VoiceSettings = Field(
-        default_factory=VoiceSettings, description="Voice configuration parameters"
-    )
+    voice_name: str = Field(..., description="Kokoro voice name (e.g., bm_george, bf_emma)")
 
 
 class AudioSegment(BaseModel):
@@ -110,8 +73,8 @@ class AudioSegment(BaseModel):
     item_number: int = Field(
         ..., ge=1, description="Sequential number in newsletter (1-indexed)"
     )
-    audio_bytes: bytes = Field(..., description="Raw MP3 audio data")
-    voice_id: str = Field(..., description="ElevenLabs voice ID used")
+    audio_bytes: bytes = Field(..., description="Raw WAV audio data")
+    voice_name: str = Field(..., description="Kokoro voice name used")
     voice_gender: Literal["male", "female"] = Field(..., description="Voice gender used")
     duration_estimate: float = Field(
         default=0.0, ge=0.0, description="Estimated duration in seconds (if available)"

@@ -37,12 +37,12 @@ Second item content here.
 def mock_tts_service(mocker):
     """Mock TTS service."""
     mock = mocker.Mock()
-    # Return fake audio segments
+    # Return fake WAV audio segments
     mock.convert_to_speech.side_effect = lambda req: AudioSegment(
         item_number=1,
-        audio_bytes=b"\xff\xfb\x90\x00" + b"\x00" * 50,
-        voice_id=req.voice_id,
-        voice_gender="male",
+        audio_bytes=b"RIFF" + b"\x00" * 50,  # WAV format starts with RIFF
+        voice_name=req.voice_name,
+        voice_gender="male" if "george" in req.voice_name else "female",
     )
     return mock
 
@@ -51,15 +51,9 @@ def test_generate_audio_for_newsletter_success(
     sample_markdown, mock_tts_service, mocker
 ):
     """Test successful audio generation for newsletter."""
-    # Mock environment variables
-    mocker.patch.dict("os.environ", {
-        "ELEVENLABS_API_KEY": "test_key",
-        "ELEVENLABS_MALE_VOICE_ID": "male_voice",
-        "ELEVENLABS_FEMALE_VOICE_ID": "female_voice"
-    })
     # Mock the TTS service initialization
     mocker.patch(
-        "src.services.audio.audio_generator.ElevenLabsTTSService",
+        "src.services.audio.audio_generator.KokoroTTSService",
         return_value=mock_tts_service,
     )
 
@@ -76,38 +70,32 @@ def test_generate_audio_for_newsletter_success(
 
 def test_generate_audio_alternating_voices(sample_markdown, mocker, tmp_path):
     """Test that voices alternate between male and female."""
-    voice_ids_used = []
+    voice_names_used = []
 
     def mock_convert(request):
-        voice_ids_used.append(request.voice_id)
+        voice_names_used.append(request.voice_name)
         return AudioSegment(
-            item_number=len(voice_ids_used),
-            audio_bytes=b"\xff\xfb\x90\x00" + b"\x00" * 50,
-            voice_id=request.voice_id,
-            voice_gender="male" if len(voice_ids_used) % 2 == 1 else "female",
+            item_number=len(voice_names_used),
+            audio_bytes=b"RIFF" + b"\x00" * 50,
+            voice_name=request.voice_name,
+            voice_gender="male" if len(voice_names_used) % 2 == 1 else "female",
         )
 
     mock_tts = Mock()
     mock_tts.convert_to_speech.side_effect = mock_convert
 
-    # Mock environment variables
-    mocker.patch.dict("os.environ", {
-        "ELEVENLABS_API_KEY": "test_key",
-        "ELEVENLABS_MALE_VOICE_ID": "male_voice",
-        "ELEVENLABS_FEMALE_VOICE_ID": "female_voice"
-    })
     mocker.patch(
-        "src.services.audio.audio_generator.ElevenLabsTTSService", return_value=mock_tts
+        "src.services.audio.audio_generator.KokoroTTSService", return_value=mock_tts
     )
     # Use temp cache directory to avoid cache hits
     mocker.patch("src.services.audio.audio_generator.CACHE_DIR", tmp_path / "cache")
 
     result = generate_audio_for_newsletter(sample_markdown)
 
-    assert len(voice_ids_used) == 2
+    assert len(voice_names_used) == 2
     # Odd items should use male voice, even items should use female voice
-    # Default IDs from AudioConfig
-    assert voice_ids_used[0] != voice_ids_used[1]  # Should alternate
+    # Default: bm_george and bf_emma from AudioConfig
+    assert voice_names_used[0] != voice_names_used[1]  # Should alternate
 
 
 def test_generate_audio_concatenation():
@@ -115,14 +103,14 @@ def test_generate_audio_concatenation():
     segments = [
         AudioSegment(
             item_number=1,
-            audio_bytes=b"\xff\xfb\x90\x00" + b"\x11" * 10,
-            voice_id="voice1",
+            audio_bytes=b"RIFF" + b"\x11" * 10,
+            voice_name="bm_george",
             voice_gender="male",
         ),
         AudioSegment(
             item_number=2,
-            audio_bytes=b"\xff\xfb\x90\x00" + b"\x22" * 10,
-            voice_id="voice2",
+            audio_bytes=b"RIFF" + b"\x22" * 10,
+            voice_name="bf_emma",
             voice_gender="female",
         ),
     ]
@@ -139,14 +127,8 @@ def test_generate_audio_concatenation():
 
 def test_generate_audio_file_output(sample_markdown, mock_tts_service, mocker):
     """Test that MP3 file is created with correct name."""
-    # Mock environment variables
-    mocker.patch.dict("os.environ", {
-        "ELEVENLABS_API_KEY": "test_key",
-        "ELEVENLABS_MALE_VOICE_ID": "male_voice",
-        "ELEVENLABS_FEMALE_VOICE_ID": "female_voice"
-    })
     mocker.patch(
-        "src.services.audio.audio_generator.ElevenLabsTTSService",
+        "src.services.audio.audio_generator.KokoroTTSService",
         return_value=mock_tts_service,
     )
 
