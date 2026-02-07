@@ -18,16 +18,46 @@
 
     <h5>Configured Senders</h5>
     {% if newsletter_config.senders %}
-    <ul class="sender-list">
-        {% for email, config in newsletter_config.senders.items() %}
-        <li class="sender-item">
-            <span class="sender-email">{{ email }}</span>
-            <span class="sender-status {% if config.get('enabled', True) %}enabled{% else %}disabled{% endif %}">
-                {% if config.get('enabled', True) %}Enabled{% else %}Disabled{% endif %}
-            </span>
-        </li>
-        {% endfor %}
-    </ul>
+    <div class="sender-list-table">
+        <table class="senders-table">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Display Name</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for email, config in newsletter_config.senders.items() %}
+                <tr class="sender-row">
+                    <td class="sender-email">{{ email }}</td>
+                    <td class="sender-display-name">
+                        <span class="display-name-value">{{ config.get('display_name', '—') }}</span>
+                        <button class="btn-small edit-display-name-btn"
+                                onclick="editDisplayName('{{ email }}', '{{ config.get('display_name', '') }}')">
+                            Edit
+                        </button>
+                    </td>
+                    <td>
+                        <span class="sender-status {% if config.get('enabled', True) %}enabled{% else %}disabled{% endif %}">
+                            {% if config.get('enabled', True) %}Enabled{% else %}Disabled{% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn-small btn-danger"
+                                hx-delete="{{ url_for('main.api_settings_delete_sender', email=email) }}"
+                                hx-confirm="Remove {{ email }} from senders?"
+                                hx-target="#newsletter-status"
+                                hx-swap="innerHTML">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
     <p class="no-senders">No newsletter senders configured yet.</p>
     {% endif %}
@@ -45,6 +75,14 @@
                        name="email"
                        required
                        placeholder="newsletter@example.com">
+            </div>
+            <div class="form-group">
+                <label for="sender_display_name">Display Name (optional):</label>
+                <input type="text"
+                       id="sender_display_name"
+                       name="display_name"
+                       placeholder="e.g., Alphasignal">
+                <small class="form-hint">Friendly name for audio attribution</small>
             </div>
             <button type="submit" class="btn">Add Sender</button>
         </form>
@@ -72,3 +110,147 @@
     </div>
     <div id="newsletter-status"></div>
 </div>
+
+<!-- Display Name Edit Modal -->
+<div id="display-name-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <h4>Edit Display Name</h4>
+        <form id="display-name-form">
+            <input type="hidden" id="edit-sender-email" name="email">
+            <div class="form-group">
+                <label for="edit-display-name">Display Name:</label>
+                <input type="text"
+                       id="edit-display-name"
+                       name="display_name"
+                       placeholder="e.g., Alphasignal">
+                <small class="form-hint">Leave empty to remove attribution from audio</small>
+            </div>
+            <div class="modal-buttons">
+                <button type="submit" class="btn">Save</button>
+                <button type="button" class="btn btn-secondary" onclick="closeDisplayNameModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function editDisplayName(email, currentName) {
+    document.getElementById('edit-sender-email').value = email;
+    document.getElementById('edit-display-name').value = currentName || '';
+    document.getElementById('display-name-modal').style.display = 'flex';
+}
+
+function closeDisplayNameModal() {
+    document.getElementById('display-name-modal').style.display = 'none';
+}
+
+document.getElementById('display-name-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+
+    fetch('/api/settings/newsletter/display-name', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(html => {
+        document.getElementById('newsletter-status').innerHTML = html;
+        closeDisplayNameModal();
+        // Reload page after 1 second to show updated table
+        setTimeout(() => window.location.reload(), 1000);
+    })
+    .catch(error => {
+        document.getElementById('newsletter-status').innerHTML =
+            '<div class="status error">Error updating display name: ' + error + '</div>';
+    });
+});
+
+// Close modal when clicking outside
+document.getElementById('display-name-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDisplayNameModal();
+    }
+});
+</script>
+
+<style>
+.senders-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+}
+
+.senders-table th,
+.senders-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.senders-table th {
+    background-color: #f0f0f0;
+    font-weight: 600;
+}
+
+.sender-display-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.display-name-value {
+    min-width: 100px;
+}
+
+.btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.edit-display-name-btn {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+
+.edit-display-name-btn:hover {
+    background-color: #0056b3;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 30px;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+</style>
