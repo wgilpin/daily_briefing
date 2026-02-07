@@ -24,7 +24,6 @@
                 <tr>
                     <th>Email</th>
                     <th>Display Name</th>
-                    <th>Status</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -34,23 +33,20 @@
                     <td class="sender-email">{{ email }}</td>
                     <td class="sender-display-name">
                         <span class="display-name-value">{{ config.get('display_name', '—') }}</span>
-                        <button class="btn-small edit-display-name-btn"
-                                onclick="editDisplayName('{{ email }}', '{{ config.get('display_name', '') }}')">
-                            Edit
+                        <button class="btn-icon edit-display-name-btn"
+                                onclick="editDisplayName('{{ email }}', '{{ config.get('display_name', '') }}')"
+                                title="Edit display name">
+                            ✏️
                         </button>
                     </td>
-                    <td>
-                        <span class="sender-status {% if config.get('enabled', True) %}enabled{% else %}disabled{% endif %}">
-                            {% if config.get('enabled', True) %}Enabled{% else %}Disabled{% endif %}
-                        </span>
-                    </td>
-                    <td>
-                        <button class="btn-small btn-danger"
+                    <td class="sender-actions">
+                        <button class="btn-icon btn-danger"
                                 hx-delete="{{ url_for('main.api_settings_delete_sender', email=email) }}"
                                 hx-confirm="Remove {{ email }} from senders?"
                                 hx-target="#newsletter-status"
-                                hx-swap="innerHTML">
-                            Delete
+                                hx-swap="innerHTML"
+                                title="Delete sender">
+                            🗑️
                         </button>
                     </td>
                 </tr>
@@ -67,24 +63,28 @@
         <form hx-post="{{ url_for('main.api_settings_newsletter_sender') }}"
               hx-target="#newsletter-status"
               hx-swap="innerHTML"
-              class="config-form inline-form">
-            <div class="form-group">
-                <label for="sender_email">Email Address:</label>
-                <input type="email"
-                       id="sender_email"
-                       name="email"
-                       required
-                       placeholder="newsletter@example.com">
+              class="config-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="sender_email">Email Address:</label>
+                    <input type="email"
+                           id="sender_email"
+                           name="email"
+                           required
+                           placeholder="newsletter@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="sender_display_name">Display Name (optional):</label>
+                    <input type="text"
+                           id="sender_display_name"
+                           name="display_name"
+                           placeholder="e.g., Alphasignal">
+                    <small class="form-hint">Friendly name for audio attribution</small>
+                </div>
+                <div class="form-group form-button">
+                    <button type="submit" class="btn">Add Sender</button>
+                </div>
             </div>
-            <div class="form-group">
-                <label for="sender_display_name">Display Name (optional):</label>
-                <input type="text"
-                       id="sender_display_name"
-                       name="display_name"
-                       placeholder="e.g., Alphasignal">
-                <small class="form-hint">Friendly name for audio attribution</small>
-            </div>
-            <button type="submit" class="btn">Add Sender</button>
         </form>
     </div>
 
@@ -174,10 +174,60 @@ document.getElementById('display-name-modal').addEventListener('click', function
 </script>
 
 <style>
+.form-row {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.form-row .form-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.form-row .form-button {
+    flex: 0 0 auto;
+    min-width: 120px;
+    display: flex;
+    align-items: flex-end;
+}
+
+.form-row .form-button .btn {
+    margin-top: 0;
+    height: 38px;
+    white-space: nowrap;
+    padding: 8px 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.form-hint {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.sender-list-table {
+    margin: 15px 0;
+}
+
 .senders-table {
     width: 100%;
     border-collapse: collapse;
-    margin: 15px 0;
+    table-layout: auto;
 }
 
 .senders-table th,
@@ -190,33 +240,45 @@ document.getElementById('display-name-modal').addEventListener('click', function
 .senders-table th {
     background-color: #f0f0f0;
     font-weight: 600;
+    white-space: nowrap;
+}
+
+.sender-email {
+    font-size: 13px;
+    word-break: break-word;
 }
 
 .sender-display-name {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .display-name-value {
-    min-width: 100px;
+    flex: 1;
 }
 
-.btn-small {
+.sender-actions {
+    text-align: center;
+    width: 60px;
+}
+
+.btn-icon {
     padding: 4px 8px;
-    font-size: 12px;
+    font-size: 16px;
     cursor: pointer;
-}
-
-.edit-display-name-btn {
-    background-color: #007bff;
-    color: white;
     border: none;
+    background: transparent;
     border-radius: 4px;
+    transition: background-color 0.2s;
 }
 
 .edit-display-name-btn:hover {
-    background-color: #0056b3;
+    background-color: #e7f3ff;
+}
+
+.btn-danger:hover {
+    background-color: #ffebee;
 }
 
 .modal {
