@@ -84,14 +84,16 @@ class TestFeedItemAudioProperties:
 
         item = FeedItem(**sample_feed_item_data)
 
-        with patch('pathlib.Path.exists') as mock_exists:
-            mock_exists.return_value = True
+        # Create a mock Path instance
+        mock_path_instance = MagicMock()
+        mock_path_instance.exists.return_value = True
 
+        # Patch Path constructor to return our mock
+        with patch('src.models.feed_item.Path', return_value=mock_path_instance) as mock_path_class:
             # Access property to trigger file check
             _ = item.has_audio
 
-            # Verify it checked the correct path
-            # This will FAIL until has_audio is implemented
-            mock_exists.assert_called_once()
-            # The Path should have been constructed with source_id
-            assert '1a4f6b0976cc66ba' in str(mock_exists.call_args)
+            # Verify Path was called with the correct filename
+            mock_path_class.assert_called_once_with('data/audio_cache/1a4f6b0976cc66ba.wav')
+            # Verify exists() was called
+            mock_path_instance.exists.assert_called_once()

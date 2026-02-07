@@ -6,6 +6,7 @@ from src.db.repository import Repository
 from src.db.connection import get_connection
 from src.services.audio.tts_service import KokoroTTSService
 from src.models.audio_models import AudioConfig, TTSRequest
+from src.newsletter.sender_names import get_sender_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +42,22 @@ def generate_missing_audio_for_feed_items() -> dict:
             continue
 
         try:
-            # Generate audio from item title + summary
-            text = f"{item.title}. {item.summary or ''}"
+            # Get sender display name for attribution
+            sender_email = item.metadata.get("sender", "")
+            sender_name = get_sender_display_name(sender_email) if sender_email else None
+
+            # Generate audio from item title + summary with source attribution
+            if sender_name:
+                text = f"{sender_name} reports that {item.title}. {item.summary or ''}"
+            else:
+                # Fallback for items without sender (e.g., Zotero items)
+                text = f"{item.title}. {item.summary or ''}"
 
             # Alternate voices (odd = male, even = female)
             voice_name = config.male_voice if idx % 2 == 1 else config.female_voice
 
-            logger.info(f"Generating audio {idx}/{len(items)}: {item.title[:60]}...")
+            source_info = f" ({sender_name})" if sender_name else ""
+            logger.info(f"Generating audio {idx}/{len(items)}{source_info}: {item.title[:60]}...")
 
             request = TTSRequest(text=text, voice_name=voice_name)
             segment = tts_service.convert_to_speech(request)

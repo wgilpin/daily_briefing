@@ -709,6 +709,7 @@ def api_settings_newsletter_sender():
 
     Form Parameters:
         email: Email address of the sender to add
+        display_name: Optional friendly display name for audio attribution
 
     Returns:
         HTML: HTMX response fragment with status
@@ -717,6 +718,8 @@ def api_settings_newsletter_sender():
         from src.newsletter.config import load_senders_config, save_senders_config
 
         email = request.form.get("email", "").strip().lower()
+        display_name = request.form.get("display_name", "").strip()
+
         if not email:
             return """
             <div class="status error">
@@ -737,6 +740,11 @@ def api_settings_newsletter_sender():
             "enabled": True,
             "parsing_prompt": "",
         }
+
+        # Add display name if provided
+        if display_name:
+            senders[email]["display_name"] = display_name
+
         save_senders_config(senders)
 
         return f"""
@@ -746,6 +754,64 @@ def api_settings_newsletter_sender():
         """
     except Exception as e:
         logger.error(f"Error adding newsletter sender: {e}")
+        return f"""
+        <div class="status error">
+            <p>Error: {str(e)[:100]}</p>
+        </div>
+        """
+
+
+@bp.route("/api/settings/newsletter/display-name", methods=["POST"])
+@login_required
+def api_settings_update_display_name():
+    """
+    Update display name for a newsletter sender.
+
+    Form Parameters:
+        email: Email address of the sender
+        display_name: New display name (empty string removes it)
+
+    Returns:
+        HTML: HTMX response fragment with status
+    """
+    try:
+        from src.newsletter.config import load_senders_config, save_senders_config
+
+        email = request.form.get("email", "").strip()
+        display_name = request.form.get("display_name", "").strip()
+
+        if not email:
+            return """
+            <div class="status error">
+                <p>Email address is required.</p>
+            </div>
+            """
+
+        # Load senders
+        senders = load_senders_config()
+        if email not in senders:
+            return """
+            <div class="status error">
+                <p>Sender not found.</p>
+            </div>
+            """
+
+        # Update or remove display name
+        if display_name:
+            senders[email]["display_name"] = display_name
+        else:
+            # Remove display_name if it exists
+            senders[email].pop("display_name", None)
+
+        save_senders_config(senders)
+
+        return f"""
+        <div class="status success">
+            <p>Display name updated successfully for {email}.</p>
+        </div>
+        """
+    except Exception as e:
+        logger.error(f"Error updating display name: {e}")
         return f"""
         <div class="status error">
             <p>Error: {str(e)[:100]}</p>
