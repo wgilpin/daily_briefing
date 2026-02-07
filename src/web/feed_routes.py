@@ -344,6 +344,14 @@ def api_refresh():
 
                     llm_client = genai.Client(api_key=gemini_api_key)
 
+                    # Deduplicate items before consolidation
+                    from src.newsletter.deduplicator import deduplicate_items
+                    logger.info(f"Deduplicating {len(parsed_items)} items...")
+                    parsed_items = deduplicate_items(
+                        parsed_items, llm_client, config.models["consolidation"]
+                    )
+                    logger.info(f"After dedup: {len(parsed_items)} items")
+
                     # Use consolidation_prompt if set, otherwise fall back to default
                     consolidation_prompt = config.consolidation_prompt or config.default_consolidation_prompt
 
