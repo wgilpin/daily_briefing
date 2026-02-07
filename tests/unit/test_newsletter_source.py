@@ -48,12 +48,14 @@ class TestNewsletterSource:
         with patch("src.sources.newsletter.collect_newsletter_emails") as mock_collect, \
              patch("src.sources.newsletter.convert_emails_to_markdown") as mock_convert, \
              patch("src.sources.newsletter.parse_newsletters") as mock_parse, \
-             patch("src.sources.newsletter.Repository") as mock_repo_class:
+             patch("src.sources.newsletter.Repository") as mock_repo_class, \
+             patch("src.services.audio.generate_missing_audio.generate_missing_audio_for_feed_items") as mock_audio:
 
             # Setup mocks
             mock_collect.return_value = {"emails_collected": 2, "errors": []}
             mock_convert.return_value = {"emails_converted": 2, "errors": []}
             mock_parse.return_value = {"emails_parsed": 2, "errors": []}
+            mock_audio.return_value = {"generated": 0, "skipped": 2, "errors": []}
 
             # Mock Repository instance and methods
             mock_repo = MagicMock()
@@ -81,6 +83,7 @@ class TestNewsletterSource:
                 "collect": mock_collect,
                 "convert": mock_convert,
                 "parse": mock_parse,
+                "audio": mock_audio,
                 "repo": mock_repo,
             }
 
@@ -127,12 +130,14 @@ class TestNewsletterSource:
         with patch("src.sources.newsletter.collect_newsletter_emails") as mock_collect, \
              patch("src.sources.newsletter.convert_emails_to_markdown") as mock_convert, \
              patch("src.sources.newsletter.parse_newsletters") as mock_parse, \
-             patch("src.sources.newsletter.Repository") as mock_repo_class:
+             patch("src.sources.newsletter.Repository") as mock_repo_class, \
+             patch("src.services.audio.generate_missing_audio.generate_missing_audio_for_feed_items") as mock_audio:
 
             # Setup mocks
             mock_collect.return_value = {"emails_collected": 0, "errors": []}
             mock_convert.return_value = {"emails_converted": 0, "errors": []}
             mock_parse.return_value = {"emails_parsed": 0, "errors": []}
+            mock_audio.return_value = {"generated": 0, "skipped": 0, "errors": []}
 
             # Mock Repository instance and methods
             mock_repo = MagicMock()
@@ -186,12 +191,14 @@ class TestNewsletterSource:
         with patch("src.sources.newsletter.collect_newsletter_emails") as mock_collect, \
              patch("src.sources.newsletter.convert_emails_to_markdown") as mock_convert, \
              patch("src.sources.newsletter.parse_newsletters") as mock_parse, \
-             patch("src.sources.newsletter.Repository") as mock_repo_class:
+             patch("src.sources.newsletter.Repository") as mock_repo_class, \
+             patch("src.services.audio.generate_missing_audio.generate_missing_audio_for_feed_items") as mock_audio:
 
             # Setup mocks
             mock_collect.return_value = {"emails_collected": 1, "errors": []}
             mock_convert.return_value = {"emails_converted": 1, "errors": []}
             mock_parse.return_value = {"emails_parsed": 1, "errors": []}
+            mock_audio.return_value = {"generated": 0, "skipped": 1, "errors": []}
 
             # Mock Repository instance and methods
             mock_repo = MagicMock()
