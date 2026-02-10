@@ -37,6 +37,7 @@ Second item content here.
 def mock_tts_service(mocker):
     """Mock TTS service."""
     mock = mocker.Mock()
+    mock.provider_name = "MockTTS"
     # Return fake WAV audio segments
     mock.convert_to_speech.side_effect = lambda req: AudioSegment(
         item_number=1,
@@ -53,7 +54,7 @@ def test_generate_audio_for_newsletter_success(
     """Test successful audio generation for newsletter."""
     # Mock the TTS service initialization
     mocker.patch(
-        "src.services.audio.audio_generator.KokoroTTSService",
+        "src.services.audio.audio_generator.get_tts_provider",
         return_value=mock_tts_service,
     )
 
@@ -82,10 +83,11 @@ def test_generate_audio_alternating_voices(sample_markdown, mocker, tmp_path):
         )
 
     mock_tts = Mock()
+    mock_tts.provider_name = "MockTTS"
     mock_tts.convert_to_speech.side_effect = mock_convert
 
     mocker.patch(
-        "src.services.audio.audio_generator.KokoroTTSService", return_value=mock_tts
+        "src.services.audio.audio_generator.get_tts_provider", return_value=mock_tts
     )
     # Use temp cache directory to avoid cache hits
     mocker.patch("src.services.audio.audio_generator.CACHE_DIR", tmp_path / "cache")
@@ -128,7 +130,7 @@ def test_generate_audio_concatenation():
 def test_generate_audio_file_output(sample_markdown, mock_tts_service, mocker):
     """Test that MP3 file is created with correct name."""
     mocker.patch(
-        "src.services.audio.audio_generator.KokoroTTSService",
+        "src.services.audio.audio_generator.get_tts_provider",
         return_value=mock_tts_service,
     )
 
@@ -138,3 +140,26 @@ def test_generate_audio_file_output(sample_markdown, mock_tts_service, mocker):
     assert result.output_path == expected_audio_path
     assert expected_audio_path.exists()
     assert expected_audio_path.stat().st_size > 0
+
+
+def test_generate_audio_populates_provider_used(sample_markdown, mocker):
+    """T011: generate_audio_for_newsletter() populates provider_used from provider."""
+    mock_provider = mocker.Mock()
+    mock_provider.provider_name = "ElevenLabs"
+    mock_provider.convert_to_speech.side_effect = lambda req: AudioSegment(
+        item_number=1,
+        audio_bytes=b"RIFF" + b"\x00" * 50,
+        voice_name=req.voice_name,
+        voice_gender="male",
+    )
+    mocker.patch(
+        "src.services.audio.audio_generator.get_tts_provider",
+        return_value=mock_provider,
+    )
+    mocker.patch("src.services.audio.audio_generator.CACHE_DIR", mocker.MagicMock())
+    mocker.patch("src.services.audio.audio_generator.get_cached_audio", return_value=None)
+    mocker.patch("src.services.audio.audio_generator.cache_audio")
+
+    result = generate_audio_for_newsletter(sample_markdown)
+
+    assert result.provider_used == "ElevenLabs"

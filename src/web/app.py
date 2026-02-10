@@ -96,6 +96,7 @@ def create_app() -> Flask:
         force=True,
         encoding='utf-8'
     )
+    logging.getLogger("google_genai").setLevel(logging.WARNING)
 
     # Add file handler for persistent logs
     file_handler = logging.FileHandler(log_dir / "app.log", mode='a', encoding='utf-8')

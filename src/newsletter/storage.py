@@ -6,7 +6,7 @@ Database operations have been migrated to PostgreSQL repository (src/db/reposito
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -242,17 +242,19 @@ def save_consolidated_digest(markdown_content: str, output_dir: str) -> str:
         f.write(markdown_content)
 
     # Generate audio file for newsletter
+    audio_provider = None
     try:
         from src.services.audio.audio_generator import generate_audio_for_newsletter
 
         logger.info(f"Generating audio for newsletter: {file_path}")
         audio_result = generate_audio_for_newsletter(file_path)
+        audio_provider = audio_result.provider_used or None
 
         if audio_result.success:
             logger.info(
                 f"Audio generated successfully: {audio_result.output_path} "
                 f"({audio_result.items_processed}/{audio_result.total_items} items, "
-                f"{audio_result.duration_seconds:.2f}s)"
+                f"{audio_result.duration_seconds:.2f}s, provider: {audio_result.provider_used})"
             )
         else:
             logger.warning(
@@ -264,7 +266,7 @@ def save_consolidated_digest(markdown_content: str, output_dir: str) -> str:
         # Don't fail newsletter save if audio generation fails
         logger.error(f"Audio generation failed: {e}", exc_info=True)
 
-    return str(file_path)
+    return str(file_path), audio_provider
 
 
 def get_recent_parsed_items(

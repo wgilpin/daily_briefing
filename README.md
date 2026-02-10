@@ -9,6 +9,7 @@ A unified web application that aggregates content from multiple sources (Zotero 
 - **Multiple Sources**:
   - Zotero library additions (research papers)
   - Newsletter emails from Gmail (parsed via LLM)
+- **Audio Playback**: Newsletters converted to speech (Kokoro TTS locally, ElevenLabs fallback)
 - **On-Demand Refresh**: Manually trigger content updates from all sources
 - **Source Management**: Configure and manage multiple content sources
 - **Extensible Architecture**: Easy to add new source types
@@ -21,14 +22,19 @@ A unified web application that aggregates content from multiple sources (Zotero 
 - Zotero account with API credentials (optional, for Zotero source)
 - Gmail account with OAuth credentials (optional, for newsletter source)
 - Google Gemini API key (optional, for newsletter parsing)
+- ElevenLabs API key (optional, for cloud TTS — used automatically when Kokoro is not installed)
+- espeak-ng (optional, for local Kokoro TTS on dev machines — install separately from [espeak-ng releases](https://github.com/espeak-ng/espeak-ng/releases))
 
 ## Setup
 
 ### 1. Install Dependencies
 
 ```bash
-# Using uv (recommended)
+# Core dependencies only (uses ElevenLabs for TTS)
 uv sync
+
+# With local Kokoro TTS support (requires espeak-ng installed on your system)
+uv sync --extra kokoro
 ```
 
 ### 2. Configure Environment Variables
@@ -50,11 +56,17 @@ GEMINI_API_KEY=your_gemini_api_key_here
 GOOGLE_CLIENT_ID=your_client_id
 GOOGLE_CLIENT_SECRET=your_client_secret
 
-# Encryption key for secure data storage
-ENCRYPTION_KEY=your_32_byte_hex_key
+# Encryption key for Gmail OAuth token storage (required if using newsletter source)
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+ENCRYPTION_KEY=your_fernet_key_here
 
 # Flask secret key (required for user sessions)
 SECRET_KEY=your_secret_key_here
+
+# ElevenLabs TTS (used as fallback when Kokoro is not installed, or as primary on Hetzner/Coolify)
+ELEVENLABS_API_KEY=your_elevenlabs_api_key
+ELEVENLABS_MALE_VOICE_ID=21m00Tcm4TlvDq8ikWAM   # optional, defaults to Adam
+ELEVENLABS_FEMALE_VOICE_ID=EXAVITQu4vr4xnSDxMaL # optional, defaults to Bella
 ```
 
 **Security Note**: Never commit `.env` to version control.
@@ -165,13 +177,14 @@ The app will be available at `http://localhost:5000`.
 
 2. **Configure environment variables** in Coolify's dashboard:
    - `DATABASE_URL` - PostgreSQL connection string
+   - `SECRET_KEY` - Flask secret key
+   - `ENCRYPTION_KEY` - Fernet key for Gmail OAuth token encryption (required if using newsletter source)
+   - `ELEVENLABS_API_KEY` - ElevenLabs API key (used for TTS on Hetzner — no Kokoro in prod)
    - `ZOTERO_LIBRARY_ID` - Your Zotero user ID (optional)
    - `ZOTERO_API_KEY` - Your Zotero API key (optional)
    - `GEMINI_API_KEY` - Google Gemini API key (optional)
-   - `ENCRYPTION_KEY` - 32-byte hex encryption key
    - `GOOGLE_CLIENT_ID` - Gmail OAuth client ID (optional)
    - `GOOGLE_CLIENT_SECRET` - Gmail OAuth secret (optional)
-   - `SECRET_KEY` - Flask secret key
 
 3. **Add PostgreSQL service**:
    - Create a new PostgreSQL database in Coolify
@@ -212,9 +225,7 @@ The app will be available at `http://localhost:5000`.
   - Customize parsing prompts per sender
   - Enable/disable specific sources
 
-### Filtering (Future)
-
-Future versions will support:
+### Filtering
 
 - Filter by source type (Zotero only, newsletters only, etc.)
 - Search by keyword
@@ -269,10 +280,12 @@ src/
 └── zotero/          # Zotero API integration
 
 config/              # Configuration files (OAuth credentials, senders)
-data/                # Local data storage (SQLite for newsletters)
+data/                # Local data storage (audio cache, digest output)
 tests/
 ├── unit/            # Unit tests
-│   └── auth/        # Authentication tests (24 tests)
+│   ├── auth/        # Authentication tests
+│   ├── services/    # Audio TTS service tests
+│   └── ...
 └── integration/     # Integration tests
 
 create_user.py       # CLI tool to create user accounts
@@ -316,6 +329,13 @@ See [specs/003-unified-feed-app/](specs/003-unified-feed-app/) for detailed arch
 - Verify `config/credentials.json` exists for Gmail OAuth
 - Check `config/senders.json` has at least one enabled sender
 - Monitor Gemini API quota limits
+
+### Audio / TTS Not Working
+
+- **Kokoro falls back to ElevenLabs**: normal on machines without espeak-ng or GPU
+- **"No TTS provider available"**: set `ELEVENLABS_API_KEY` or install Kokoro extras (`uv sync --extra kokoro`)
+- **Kokoro missing on dev**: run `uv sync --extra kokoro` to install it
+- **Hetzner/Coolify**: Kokoro is intentionally not installed in prod; set `ELEVENLABS_API_KEY` in Coolify env vars
 
 ### "No items found"
 
