@@ -2,7 +2,6 @@
 
 import hashlib
 import logging
-import os
 import subprocess
 import tempfile
 import time
@@ -15,7 +14,7 @@ from src.models.audio_models import (
     TTSRequest,
 )
 from src.services.audio.markdown_parser import parse_newsletter_items
-from src.services.audio.tts_service import KokoroTTSService
+from src.services.audio.tts_service import get_tts_provider
 from src.services.audio import TTSError
 
 logger = logging.getLogger(__name__)
@@ -206,14 +205,14 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
     items_processed = 0
     segments = []
     error_message = None
+    provider_name = ""
 
     try:
         # Load configuration
         config = AudioConfig.from_env()
 
-        # Initialize TTS service (Kokoro runs locally, no API key needed)
-        logger.info("Initializing Kokoro TTS service")
-        tts_service = KokoroTTSService(config=config)
+        # Select TTS provider (Kokoro if available, else ElevenLabs)
+        tts_service = get_tts_provider(config)
 
         # Parse newsletter items
         logger.info(f"Parsing newsletter: {markdown_path}")
@@ -233,6 +232,8 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
                 except ValueError:
                     logger.warning(f"Could not parse date from filename: {filename}")
 
+        provider_name = tts_service.provider_name
+
         if total_items == 0:
             error_message = "No items found in newsletter"
             logger.warning(error_message)
@@ -242,6 +243,7 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
                 items_processed=0,
                 error_message=error_message,
                 duration_seconds=time.time() - start_time,
+                provider_used=provider_name,
             )
 
         logger.info(f"Generating audio for {total_items} items (date: {digest_date or 'unknown'})")
@@ -304,6 +306,7 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
                 items_processed=0,
                 error_message=error_message or "All items failed to convert",
                 duration_seconds=time.time() - start_time,
+                provider_used=provider_name,
             )
 
         # Concatenate audio segments
@@ -330,6 +333,7 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
             items_processed=items_processed,
             error_message=error_message if not success else None,
             duration_seconds=duration,
+            provider_used=provider_name,
         )
 
     except Exception as e:
@@ -343,4 +347,5 @@ def generate_audio_for_newsletter(markdown_path: Path) -> AudioGenerationResult:
             items_processed=items_processed,
             error_message=error_message,
             duration_seconds=duration,
+            provider_used=provider_name,
         )

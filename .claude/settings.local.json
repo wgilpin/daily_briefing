@@ -35,7 +35,9 @@
       "WebFetch(domain:github.com)",
       "Bash(uv pip:*)",
       "Bash(git stash:*)",
-      "Bash(git rebase:*)"
+      "Bash(git rebase:*)",
+      "Bash(findstr:*)",
+      "Bash(PGPASSWORD=briefing psql:*)"
     ],
     "deny": [],
     "ask": []
