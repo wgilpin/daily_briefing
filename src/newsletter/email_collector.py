@@ -15,7 +15,22 @@ from src.newsletter.storage import (
     save_markdown,
     save_parsed_items,
 )
-from src.utils.config import load_config
+from src.newsletter.config import load_config as _load_newsletter_config
+
+
+def _get_config_dict() -> dict:
+    """Load newsletter config from DB and return as plain dict."""
+    cfg = _load_newsletter_config()
+    return {
+        "senders": cfg.senders,
+        "models": cfg.models,
+        "days_lookback": cfg.days_lookback,
+        "max_workers": cfg.max_workers,
+        "default_parsing_prompt": cfg.default_parsing_prompt,
+        "consolidation_prompt": cfg.consolidation_prompt,
+        "retention_limit": cfg.retention_limit,
+        "excluded_topics": cfg.excluded_topics,
+    }
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +74,7 @@ def collect_newsletter_emails(
 
     # Load configuration
     try:
-        config = load_config(config_path)
+        config = _get_config_dict()
         senders = config.get("senders", {})
         # Use provided days_lookback or fall back to config or default
         if days_lookback is None:
@@ -69,7 +84,7 @@ def collect_newsletter_emails(
         return result
 
     if not senders:
-        result["errors"].append("No senders configured in config/senders.json")
+        result["errors"].append("No senders configured")
         return result
 
     # Get enabled sender emails
@@ -413,7 +428,7 @@ def parse_newsletters(
 
     # Load configuration
     try:
-        config = load_config(config_path)
+        config = _get_config_dict()
         senders = config.get("senders", {})
         # Models are validated in load_config - will raise ValueError if missing
         parsing_model = config["models"]["parsing"]

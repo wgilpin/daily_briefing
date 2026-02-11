@@ -13,12 +13,14 @@ import types
 
 
 def _make_kokoro_modules(mocker, pipeline_mock):
-    """Inject dummy kokoro and soundfile into sys.modules for testing."""
+    """Inject dummy kokoro, soundfile, and torch into sys.modules for testing."""
     dummy_kokoro = types.ModuleType("kokoro")
     dummy_kokoro.KPipeline = mocker.Mock(return_value=pipeline_mock)  # type: ignore[attr-defined]
     dummy_soundfile = types.ModuleType("soundfile")
     dummy_soundfile.write = mocker.Mock()  # type: ignore[attr-defined]
-    return dummy_kokoro, dummy_soundfile
+    dummy_torch = types.ModuleType("torch")
+    dummy_torch.cuda = types.SimpleNamespace(is_available=lambda: False)  # type: ignore[attr-defined]
+    return dummy_kokoro, dummy_soundfile, dummy_torch
 
 
 @pytest.fixture
@@ -41,8 +43,8 @@ def audio_config():
 
 
 def _make_kokoro_service(mocker, audio_config, pipeline_mock):
-    """Helper: create KokoroTTSService with mocked kokoro/soundfile modules."""
-    dummy_kokoro, dummy_soundfile = _make_kokoro_modules(mocker, pipeline_mock)
+    """Helper: create KokoroTTSService with mocked kokoro/soundfile/torch modules."""
+    dummy_kokoro, dummy_soundfile, dummy_torch = _make_kokoro_modules(mocker, pipeline_mock)
     fake_wav = b"RIFF" + b"\x00" * 44
 
     def fake_sf_write(buf, data, samplerate, format):
@@ -57,7 +59,7 @@ def _make_kokoro_service(mocker, audio_config, pipeline_mock):
     # Keep patches active for the lifetime of the test (not just during __init__)
     mocker.patch.dict(
         sys.modules,
-        {"kokoro": dummy_kokoro, "soundfile": dummy_soundfile, "numpy": dummy_numpy},
+        {"kokoro": dummy_kokoro, "soundfile": dummy_soundfile, "numpy": dummy_numpy, "torch": dummy_torch},
     )
     service = KokoroTTSService(config=audio_config)
     return service, dummy_soundfile, fake_wav
@@ -120,10 +122,12 @@ def test_get_tts_provider_returns_kokoro_when_available(mocker, audio_config):
     # Ensure a dummy kokoro module is present so `import kokoro` succeeds
     dummy_kokoro = types.ModuleType("kokoro")
     dummy_soundfile = types.ModuleType("soundfile")
+    dummy_torch = types.ModuleType("torch")
+    dummy_torch.cuda = types.SimpleNamespace(is_available=lambda: False)  # type: ignore[attr-defined]
     mock_pipeline = mocker.Mock(return_value=[])
     dummy_kokoro.KPipeline = mock_pipeline  # type: ignore[attr-defined]
 
-    mocker.patch.dict(sys.modules, {"kokoro": dummy_kokoro, "soundfile": dummy_soundfile})
+    mocker.patch.dict(sys.modules, {"kokoro": dummy_kokoro, "soundfile": dummy_soundfile, "torch": dummy_torch})
     provider = get_tts_provider(audio_config)
 
     assert isinstance(provider, KokoroTTSService)

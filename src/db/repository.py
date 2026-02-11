@@ -123,7 +123,7 @@ class Repository:
                     params.append(source_type)
 
                 if days:
-                    query += " AND item_date >= NOW() - INTERVAL '%s days'"
+                    query += " AND item_date >= NOW() - (%s * INTERVAL '1 day')"
                     params.append(days)
 
                 query += " ORDER BY item_date DESC LIMIT %s OFFSET %s"

@@ -76,8 +76,8 @@ class TestNewsletterSource:
                     fetched_at=datetime.now(timezone.utc),
                 ))
 
-            # First call returns empty (before), second call returns items (after)
-            mock_repo.get_feed_items.side_effect = [[], feed_items]
+            # Multiple calls: before pipeline, during pipeline steps, after pipeline
+            mock_repo.get_feed_items.side_effect = [[], feed_items, feed_items, feed_items]
 
             yield {
                 "collect": mock_collect,
@@ -203,7 +203,7 @@ class TestNewsletterSource:
             # Mock Repository instance and methods
             mock_repo = MagicMock()
             mock_repo_class.return_value = mock_repo
-            mock_repo.get_feed_items.side_effect = [[], [feed_item_with_sender]]
+            mock_repo.get_feed_items.side_effect = [[], [feed_item_with_sender], [feed_item_with_sender], [feed_item_with_sender]]
 
             from src.sources.newsletter import NewsletterSource
 

@@ -4,6 +4,7 @@ Wraps existing src/newsletter/ functionality to implement FeedSource protocol.
 """
 
 import logging
+from datetime import datetime, timezone
 
 from src.models.feed_item import FeedItem
 from src.models.source import NewsletterConfig
@@ -184,14 +185,14 @@ class NewsletterSource:
             import traceback
             logger.error(f"Deduplication step failed: {e}\n{traceback.format_exc()}")
 
-        # Step 4: Generate audio for any items missing audio files
+        # Step 4: Generate audio only for items that survived deduplication
+        all_items = repo.get_feed_items(source_type="newsletter", limit=1000, days=self._config.days_lookback)
         logger.info("Step 4: Generating audio for items")
         from src.services.audio.generate_missing_audio import generate_missing_audio_for_feed_items
-        audio_result = generate_missing_audio_for_feed_items()
+        audio_result = generate_missing_audio_for_feed_items(items=all_items)
         logger.info(f"Generated audio for {audio_result['generated']} items (skipped {audio_result['skipped']} existing)")
 
-        # Step 5: Fetch items from PostgreSQL and return only NEW items
-        all_items = repo.get_feed_items(source_type="newsletter", limit=1000)
+        # Step 5: Return only NEW items within lookback window
         new_items = [item for item in all_items if item.id not in items_before]
 
         logger.info(f"Returning {len(new_items)} new newsletter items (out of {len(all_items)} total)")

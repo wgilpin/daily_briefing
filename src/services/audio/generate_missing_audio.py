@@ -13,8 +13,11 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = Path("data/audio_cache")
 
 
-def generate_missing_audio_for_feed_items() -> dict:
+def generate_missing_audio_for_feed_items(items=None) -> dict:
     """Generate audio files for feed items that don't have audio yet.
+
+    Args:
+        items: Optional list of FeedItem objects to process. If None, queries all newsletter items.
 
     Returns:
         dict with 'generated', 'skipped', 'errors' counts
@@ -27,10 +30,11 @@ def generate_missing_audio_for_feed_items() -> dict:
     # Initialize TTS service
     tts_service = KokoroTTSService(config=config)
 
-    # Get all newsletter items
-    repo = Repository()
-    with get_connection():
-        items = repo.get_feed_items(source_type='newsletter', limit=1000)
+    if items is None:
+        # Fallback: query all newsletter items (used when called standalone)
+        repo = Repository()
+        with get_connection():
+            items = repo.get_feed_items(source_type='newsletter', limit=1000)
 
     logger.info(f"Checking {len(items)} newsletter items for missing audio")
 
