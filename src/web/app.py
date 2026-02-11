@@ -122,7 +122,11 @@ def create_app() -> Flask:
         try:
             from src.newsletter.migration import migrate_senders_if_needed
             _senders_json = Path(__file__).parent.parent.parent / "config" / "senders.json"
+            if _senders_json.exists():
+                logging.info(f"Found {_senders_json}, running senders migration...")
             migrate_senders_if_needed(_senders_json)
+            if not _senders_json.exists() and (_senders_json.parent / (_senders_json.name + ".bak")).exists():
+                logging.info("Senders migration completed successfully.")
         except RuntimeError as exc:
             logging.error(f"Startup aborted: {exc}")
             raise
