@@ -21,13 +21,17 @@ dependencies = [
     "pydantic>=2.6.0",
     "flask-login>=0.6.3",
     "passlib[argon2]>=1.7.4",
-    "kokoro>=0.9.4",
-    "soundfile>=0.13.1",
+    "elevenlabs>=1.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+]
+kokoro = [
+    "en-core-web-sm",
+    "kokoro>=0.9.4",
+    "soundfile>=0.13.1",
 ]
 
 [project.scripts]
@@ -48,3 +52,6 @@ filterwarnings = [
     # Suppress pyparsing deprecation warnings (used by httplib2)
     "ignore::DeprecationWarning:pyparsing",
 ]
+
+[tool.uv.sources]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }

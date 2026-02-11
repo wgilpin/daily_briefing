@@ -83,6 +83,44 @@ class AudioSegment(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
+class ElevenLabsConfig(BaseModel):
+    """Configuration for ElevenLabs TTS API."""
+
+    api_key: str = Field(..., description="ElevenLabs API key")
+    male_voice_id: str = Field(
+        default="21m00Tcm4TlvDq8ikWAM",
+        description="ElevenLabs voice ID for male voice",
+    )
+    female_voice_id: str = Field(
+        default="EXAVITQu4vr4xnSDxMaL",
+        description="ElevenLabs voice ID for female voice",
+    )
+
+    @classmethod
+    def from_env(cls) -> "ElevenLabsConfig":
+        """Load configuration from environment variables.
+
+        Raises:
+            ValueError: If ELEVENLABS_API_KEY is not set.
+        """
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "ELEVENLABS_API_KEY environment variable is not set"
+            )
+        return cls(
+            api_key=api_key,
+            male_voice_id=os.getenv(
+                "ELEVENLABS_MALE_VOICE_ID",
+                cls.model_fields["male_voice_id"].default,
+            ),
+            female_voice_id=os.getenv(
+                "ELEVENLABS_FEMALE_VOICE_ID",
+                cls.model_fields["female_voice_id"].default,
+            ),
+        )
+
+
 class AudioGenerationResult(BaseModel):
     """Result of audio generation for a newsletter."""
 
@@ -101,6 +139,9 @@ class AudioGenerationResult(BaseModel):
     )
     duration_seconds: float = Field(
         default=0.0, ge=0.0, description="Total time taken for audio generation"
+    )
+    provider_used: str = Field(
+        default="", description="TTS provider used for this generation (e.g. 'Kokoro', 'ElevenLabs')"
     )
 
     @property

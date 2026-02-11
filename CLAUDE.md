@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-02
 - File-based (MP3 files in data/output/, credentials in .env) (007-newsletter-audio)
 - Python 3.13+ + psycopg2 (existing), Flask (existing), Pydantic (existing) (013-senders-db-migration)
 - Coolify PostgreSQL via `DATABASE_URL` env var (013-senders-db-migration)
+- Python 3.13+ + Flask, kokoro (optional extra), soundfile (optional extra), elevenlabs SDK (to be restored), ffmpeg (system dep, already present) (012-tts-fallback)
+- N/A (no new persistent data; audio cache files unchanged) (012-tts-fallback)
 
 - Python 3.13+ (existing project requirement) (004-user-login)
 
@@ -31,6 +33,7 @@ Python 3.13+ (existing project requirement): Follow standard conventions
 
 ## Recent Changes
 - 013-senders-db-migration: Added Python 3.13+ + psycopg2 (existing), Flask (existing), Pydantic (existing)
+- 012-tts-fallback: Added Python 3.13+ + Flask, kokoro (optional extra), soundfile (optional extra), elevenlabs SDK (to be restored), ffmpeg (system dep, already present)
 - 007-newsletter-audio: Added Python 3.13+ + ElevenLabs Python SDK, existing Flask stack
 
 - 006-newsletter-db-consolidation: Completed newsletter database consolidation - migrated from SQLite to PostgreSQL with thread-safe connection pooling, SHA-256 stable IDs, and comprehensive test coverage

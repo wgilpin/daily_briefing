@@ -107,6 +107,83 @@ class NewsletterSource:
 
         logger.info(f"Parsed {parse_result['emails_parsed']} newsletters")
 
+        # Step 3: Apply topic exclusions before clustering
+        try:
+            from src.newsletter.config import load_config as load_newsletter_config
+            newsletter_cfg = load_newsletter_config()
+            excluded_topics = newsletter_cfg.excluded_topics
+            if excluded_topics:
+                candidates = repo.get_feed_items(source_type="newsletter", limit=1000, days=self._config.days_lookback)
+                excluded_count = 0
+                for item in candidates:
+                    text = f"{item.title} {item.summary or ''}".lower()
+                    if any(topic.lower() in text for topic in excluded_topics):
+                        repo.delete_feed_item(item.id)
+                        excluded_count += 1
+                        logger.info(f"Excluded item: {item.title[:60]}")
+                if excluded_count:
+                    logger.info(f"Step 3: Excluded {excluded_count} items matching {excluded_topics}")
+        except Exception as e:
+            logger.error(f"Exclusion step failed: {e}")
+
+        # Step 3.5: Deduplicate newly-added items before audio generation
+        logger.info("Step 3.5: Starting deduplication")
+        try:
+            import os
+            import google.genai as genai
+            from src.newsletter.deduplicator import deduplicate_items
+            from src.newsletter.id_generation import generate_newsletter_id
+
+            gemini_api_key = os.environ.get("GEMINI_API_KEY")
+            if gemini_api_key:
+                llm_client = genai.Client(api_key=gemini_api_key)
+                from src.newsletter.config import load_config as _load_cfg
+                model_name = _load_cfg().models["consolidation"]
+
+                all_newsletter_items = repo.get_feed_items(source_type="newsletter", limit=1000, days=self._config.days_lookback)
+
+                if len(all_newsletter_items) > 1:
+                    logger.info(f"Step 3.5: Deduplicating {len(all_newsletter_items)} newsletter items")
+                    items_as_dicts = [
+                        {
+                            "date": item.date.isoformat() if item.date else None,
+                            "title": item.title,
+                            "summary": item.summary or "",
+                            "link": item.link,
+                            "source_type": item.source_type,
+                        }
+                        for item in all_newsletter_items
+                    ]
+                    deduped = deduplicate_items(items_as_dicts, llm_client, model_name)
+                    if len(deduped) < len(all_newsletter_items):
+                        for item in all_newsletter_items:
+                            repo.delete_feed_item(item.id)
+                        merged = []
+                        for d in deduped:
+                            item_id = generate_newsletter_id(d.get("title", ""), d.get("date", ""))
+                            try:
+                                item_date = datetime.fromisoformat(d["date"].replace("Z", "+00:00")) if d.get("date") else datetime.now(timezone.utc)
+                            except (ValueError, AttributeError):
+                                item_date = datetime.now(timezone.utc)
+                            if item_date.tzinfo is None:
+                                item_date = item_date.replace(tzinfo=timezone.utc)
+                            merged.append(FeedItem(
+                                id=item_id,
+                                source_type="newsletter",
+                                source_id=item_id.split(":", 1)[1],
+                                title=d.get("title", "Untitled"),
+                                date=item_date,
+                                summary=d.get("summary") or None,
+                                link=d.get("link"),
+                                metadata={},
+                                fetched_at=datetime.now(timezone.utc),
+                            ))
+                        repo.save_feed_items(merged)
+                        logger.info(f"Deduplication: {len(all_newsletter_items)} → {len(deduped)} items")
+        except Exception as e:
+            import traceback
+            logger.error(f"Deduplication step failed: {e}\n{traceback.format_exc()}")
+
         # Step 4: Generate audio for any items missing audio files
         logger.info("Step 4: Generating audio for items")
         from src.services.audio.generate_missing_audio import generate_missing_audio_for_feed_items
