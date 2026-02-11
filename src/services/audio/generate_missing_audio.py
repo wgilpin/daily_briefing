@@ -4,7 +4,7 @@ from pathlib import Path
 
 from src.db.repository import Repository
 from src.db.connection import get_connection
-from src.services.audio.tts_service import KokoroTTSService
+from src.services.audio.tts_service import get_tts_provider
 from src.models.audio_models import AudioConfig, TTSRequest
 from src.newsletter.sender_names import get_sender_display_name
 
@@ -27,8 +27,8 @@ def generate_missing_audio_for_feed_items(items=None) -> dict:
     # Load configuration
     config = AudioConfig.from_env()
 
-    # Initialize TTS service
-    tts_service = KokoroTTSService(config=config)
+    # Initialize TTS service (falls back to ElevenLabs if Kokoro unavailable)
+    tts_service = get_tts_provider(config)
 
     if items is None:
         # Fallback: query all newsletter items (used when called standalone)
