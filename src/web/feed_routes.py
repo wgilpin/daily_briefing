@@ -401,6 +401,8 @@ def clear_feed_items():
         HTML: Success or error message for HTMX display
     """
     try:
+        import glob as glob_module
+        import os
         from src.db.connection import get_connection
 
         # Clear PostgreSQL feed_items and processed_emails
@@ -412,6 +414,11 @@ def clear_feed_items():
                 cursor.execute("DELETE FROM processed_emails")
                 emails_count = cursor.rowcount
             conn.commit()
+
+        # Delete cached email and markdown files so they are reprocessed
+        for pattern in ["data/emails/*.json", "data/markdown/*.md", "data/parsed/*.json"]:
+            for f in glob_module.glob(pattern):
+                os.remove(f)
 
         logger.info(f"Cleared {feed_items_count} feed items and {emails_count} processed emails from PostgreSQL")
 

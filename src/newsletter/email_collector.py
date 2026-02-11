@@ -200,6 +200,12 @@ def convert_emails_to_markdown(
         message_id = email_file.stem
 
         try:
+            # Skip if markdown already exists (already converted or parsed)
+            markdown_file = Path(markdown_dir) / f"{message_id}.md"
+            if markdown_file.exists():
+                logger.debug(f"Skipping {message_id} - markdown already exists")
+                continue
+
             # Load email
             with open(email_file, "r", encoding="utf-8") as f:
                 email = json.load(f)
