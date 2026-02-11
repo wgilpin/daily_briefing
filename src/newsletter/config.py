@@ -6,6 +6,9 @@ from typing import Dict, Any
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
+from src.db.repository import Repository
+from src.models.newsletter_models import SenderRecord
+
 
 class ModelConfig(BaseModel):
     """LLM model configuration."""
@@ -69,95 +72,97 @@ class NewsletterConfig(BaseModel):
 
 
 def load_config(path: Path | str = Path("config/senders.json")) -> NewsletterConfig:
-    """Load newsletter configuration from JSON file.
+    """Load newsletter configuration from the database.
 
     Args:
-        path: Path to configuration file
+        path: Unused — kept for backward-compatible signature.
 
     Returns:
         NewsletterConfig: Validated configuration object
-
-    Raises:
-        FileNotFoundError: If config file doesn't exist
-        ValidationError: If config doesn't match schema
     """
-    if isinstance(path, str):
-        path = Path(path)
+    repo = Repository()
+    db_config = repo.get_newsletter_config()
+    senders_list = repo.get_all_senders()
+    senders_dict: Dict[str, Any] = {
+        s.email: {
+            "parsing_prompt": s.parsing_prompt,
+            "enabled": s.enabled,
+            "display_name": s.display_name,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in senders_list
+    }
 
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    return NewsletterConfig(**data)
+    defaults: Dict[str, Any] = {
+        "senders": senders_dict,
+        "consolidation_prompt": "",
+        "retention_limit": 100,
+        "days_lookback": 30,
+        "max_workers": 10,
+        "default_parsing_prompt": "",
+        "default_consolidation_prompt": "",
+        "models": {"parsing": "gemini-2.0-flash", "consolidation": "gemini-2.0-flash"},
+        "excluded_topics": [],
+    }
+    defaults.update(db_config)
+    defaults["senders"] = senders_dict
+    return NewsletterConfig(**defaults)
 
 
 def save_config(config: NewsletterConfig, path: Path | str = Path("config/senders.json")) -> None:
-    """Save newsletter configuration to JSON file atomically.
-
-    Uses atomic write pattern (write to temp file, then rename) for safety.
+    """Persist newsletter configuration to the database.
 
     Args:
         config: Configuration object to save
-        path: Path to configuration file
+        path: Unused — kept for backward-compatible signature.
     """
-    if isinstance(path, str):
-        path = Path(path)
+    repo = Repository()
+    values: Dict[str, str] = {
+        "consolidation_prompt": config.consolidation_prompt,
+        "retention_limit": str(config.retention_limit),
+        "days_lookback": str(config.days_lookback),
+        "max_workers": str(config.max_workers),
+        "default_parsing_prompt": config.default_parsing_prompt,
+        "default_consolidation_prompt": config.default_consolidation_prompt,
+        "models": json.dumps(config.models),
+        "excluded_topics": json.dumps(config.excluded_topics),
+    }
+    repo.set_config_values(values)
 
-    path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write to temp file first
-    temp_path = path.with_suffix('.tmp')
-    with open(temp_path, 'w', encoding='utf-8') as f:
-        json.dump(config.model_dump(), f, indent=2, ensure_ascii=False)
-
-    # Atomic rename (POSIX guarantees atomicity)
-    temp_path.replace(path)
-
-
-def load_senders_config(config_path: str = "config/senders.json") -> Dict[str, Any]:
-    """
-    Load newsletter senders configuration from JSON file.
+def load_senders_config(config_path: str = "config/senders.json") -> Dict[str, SenderRecord]:
+    """Load newsletter senders from the database.
 
     Args:
-        config_path: Path to senders configuration file
+        config_path: Unused — kept for backward-compatible signature.
 
     Returns:
-        Dictionary of sender configurations
+        Dict mapping email to SenderRecord.
     """
-    path = Path(config_path)
-    if not path.exists():
-        return {}
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-            return config.get("senders", {})
-    except Exception:
-        return {}
+    repo = Repository()
+    senders = repo.get_all_senders()
+    return {s.email: s for s in senders}
 
 
 def save_senders_config(senders: Dict[str, Any], config_path: str = "config/senders.json") -> None:
-    """
-    Save newsletter senders configuration to JSON file.
+    """Persist newsletter senders to the database.
 
     Args:
-        senders: Dictionary of sender configurations
-        config_path: Path to senders configuration file
+        senders: Dict mapping email to SenderRecord (or legacy dict).
+        config_path: Unused — kept for backward-compatible signature.
     """
-    path = Path(config_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Load existing config to preserve other settings
-    existing_config = {}
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                existing_config = json.load(f)
-        except Exception:
-            pass
-
-    # Update senders section
-    existing_config["senders"] = senders
-
-    # Write back to file
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(existing_config, f, indent=2, ensure_ascii=False)
+    repo = Repository()
+    for email, sender_data in senders.items():
+        if isinstance(sender_data, SenderRecord):
+            record = sender_data
+        else:
+            record = SenderRecord(
+                email=email,
+                display_name=sender_data.get("display_name"),
+                parsing_prompt=sender_data.get("parsing_prompt", ""),
+                enabled=sender_data.get("enabled", True),
+            )
+        if repo.sender_exists(email):
+            repo.update_sender(record)
+        else:
+            repo.add_sender(record)

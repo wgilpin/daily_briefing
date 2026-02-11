@@ -4,8 +4,6 @@ Wraps existing src/newsletter/ functionality to implement FeedSource protocol.
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Optional
 
 from src.models.feed_item import FeedItem
 from src.models.source import NewsletterConfig

@@ -9,6 +9,7 @@ from typing import Optional
 
 from src.db.connection import get_connection
 from src.models.feed_item import FeedItem
+from src.models.newsletter_models import NewsletterConfigValues, SenderRecord
 from src.models.source import SourceConfig
 
 
@@ -555,3 +556,189 @@ class Repository:
                 if cursor.rowcount == 0:
                     raise ValueError(f"Email with message_id '{message_id}' not found")
             conn.commit()
+
+    # =========================================================================
+    # Sender CRUD Methods
+    # =========================================================================
+
+    def get_all_senders(self) -> list[SenderRecord]:
+        """Return all rows from the senders table."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT email, display_name, parsing_prompt, enabled, created_at FROM senders ORDER BY email"
+                )
+                rows = cursor.fetchall()
+        return [
+            SenderRecord(
+                email=row[0],
+                display_name=row[1],
+                parsing_prompt=row[2],
+                enabled=row[3],
+                created_at=row[4],
+            )
+            for row in rows
+        ]
+
+    def get_sender(self, email: str) -> Optional[SenderRecord]:
+        """Return a single sender by email, or None."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT email, display_name, parsing_prompt, enabled, created_at FROM senders WHERE email = %s",
+                    (email,),
+                )
+                row = cursor.fetchone()
+        if row is None:
+            return None
+        return SenderRecord(
+            email=row[0],
+            display_name=row[1],
+            parsing_prompt=row[2],
+            enabled=row[3],
+            created_at=row[4],
+        )
+
+    def add_sender(self, sender: SenderRecord) -> None:
+        """Insert a new sender row."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                if sender.created_at is not None:
+                    cursor.execute(
+                        """
+                        INSERT INTO senders (email, display_name, parsing_prompt, enabled, created_at)
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (
+                            sender.email,
+                            sender.display_name,
+                            sender.parsing_prompt,
+                            sender.enabled,
+                            sender.created_at,
+                        ),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO senders (email, display_name, parsing_prompt, enabled)
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (
+                            sender.email,
+                            sender.display_name,
+                            sender.parsing_prompt,
+                            sender.enabled,
+                        ),
+                    )
+            conn.commit()
+
+    def update_sender(self, sender: SenderRecord) -> None:
+        """Update all mutable fields of an existing sender."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE senders
+                    SET display_name = %s, parsing_prompt = %s, enabled = %s
+                    WHERE email = %s
+                    """,
+                    (sender.display_name, sender.parsing_prompt, sender.enabled, sender.email),
+                )
+            conn.commit()
+
+    def update_sender_display_name(self, email: str, display_name: Optional[str]) -> None:
+        """Update only the display_name field of a sender."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE senders SET display_name = %s WHERE email = %s",
+                    (display_name, email),
+                )
+            conn.commit()
+
+    def delete_sender(self, email: str) -> None:
+        """Delete a sender row by email."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM senders WHERE email = %s", (email,))
+            conn.commit()
+
+    def sender_exists(self, email: str) -> bool:
+        """Return True if a sender with this email exists."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM senders WHERE email = %s", (email,))
+                return cursor.fetchone() is not None
+
+    # =========================================================================
+    # Newsletter Config Methods
+    # =========================================================================
+
+    def get_newsletter_config(self) -> NewsletterConfigValues:
+        """Return all newsletter_config rows as a typed dict with deserialised values."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT setting_name, setting_value FROM newsletter_config")
+                rows = cursor.fetchall()
+        raw: dict = {row[0]: row[1] for row in rows}
+        result: dict = {}
+        int_keys = {"retention_limit", "days_lookback", "max_workers"}
+        json_keys = {"models", "excluded_topics"}
+        for key, value in raw.items():
+            if key in int_keys:
+                result[key] = int(value)
+            elif key in json_keys:
+                result[key] = json.loads(value)
+            else:
+                result[key] = value
+        return result  # type: ignore[return-value]
+
+    def get_config_value(self, key: str) -> Optional[str]:
+        """Return the raw string value for a config key, or None."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT setting_value FROM newsletter_config WHERE setting_name = %s",
+                    (key,),
+                )
+                row = cursor.fetchone()
+        return row[0] if row else None
+
+    def set_config_value(self, key: str, value: str) -> None:
+        """Upsert a single config key/value pair."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO newsletter_config (setting_name, setting_value)
+                    VALUES (%s, %s)
+                    ON CONFLICT (setting_name) DO UPDATE SET setting_value = EXCLUDED.setting_value
+                    """,
+                    (key, value),
+                )
+            conn.commit()
+
+    def set_config_values(self, values: dict[str, str]) -> None:
+        """Upsert multiple config key/value pairs in a single transaction."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                for key, value in values.items():
+                    cursor.execute(
+                        """
+                        INSERT INTO newsletter_config (setting_name, setting_value)
+                        VALUES (%s, %s)
+                        ON CONFLICT (setting_name) DO UPDATE SET setting_value = EXCLUDED.setting_value
+                        """,
+                        (key, value),
+                    )
+            conn.commit()
+
+    def config_key_exists(self, key: str) -> bool:
+        """Return True if a config key exists in newsletter_config."""
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT 1 FROM newsletter_config WHERE setting_name = %s",
+                    (key,),
+                )
+                return cursor.fetchone() is not None

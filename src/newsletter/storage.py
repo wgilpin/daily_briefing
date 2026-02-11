@@ -6,7 +6,7 @@ Database operations have been migrated to PostgreSQL repository (src/db/reposito
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)

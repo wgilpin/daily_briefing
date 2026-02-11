@@ -57,16 +57,10 @@ def test_audio_text_generation_with_sender():
     item_summary = "Perplexity has enhanced its Deep Research system."
     sender_email = "news@alphasignal.ai"
 
-    with patch("src.newsletter.sender_names.load_config") as mock_config:
-        mock_config.return_value = {
-            "senders": {
-                "news@alphasignal.ai": {
-                    "enabled": True,
-                    "display_name": "Alphasignal"
-                }
-            }
-        }
+    from src.models.newsletter_models import SenderRecord
 
+    with patch("src.db.repository.Repository.get_sender",
+               return_value=SenderRecord(email=sender_email, display_name="Alphasignal")):
         sender_name = get_sender_display_name(sender_email)
 
         if sender_name:
@@ -106,16 +100,10 @@ def test_audio_text_generation_sender_not_configured():
     item_summary = "Test summary."
     sender_email = "unknown@example.com"
 
-    with patch("src.newsletter.sender_names.load_config") as mock_config:
-        mock_config.return_value = {
-            "senders": {
-                # Sender exists but has no display_name
-                "unknown@example.com": {
-                    "enabled": True
-                }
-            }
-        }
+    from src.models.newsletter_models import SenderRecord
 
+    with patch("src.db.repository.Repository.get_sender",
+               return_value=SenderRecord(email=sender_email, display_name=None)):
         sender_name = get_sender_display_name(sender_email)
 
         if sender_name:

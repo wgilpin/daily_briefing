@@ -5,9 +5,33 @@ connection pool configuration, and newsletter item processing.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
+from typing_extensions import TypedDict
+
+
+class SenderRecord(BaseModel):
+    """One row in the senders table."""
+
+    email: str
+    display_name: Optional[str] = None
+    parsing_prompt: str = ""
+    enabled: bool = True
+    created_at: Optional[datetime] = None
+
+
+class NewsletterConfigValues(TypedDict, total=False):
+    """Typed dict matching the newsletter_config key/value table."""
+
+    consolidation_prompt: str
+    retention_limit: int
+    days_lookback: int
+    max_workers: int
+    default_parsing_prompt: str
+    default_consolidation_prompt: str
+    models: Dict[str, str]
+    excluded_topics: List[str]
 
 
 class ConnectionPoolConfig(BaseModel):

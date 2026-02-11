@@ -25,4 +25,4 @@ config/tokens.json
 # Application logs
 logs/
 *.log
-config/senders.json
+config/senders.json.bak
