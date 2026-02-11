@@ -2,11 +2,10 @@
 
 import logging
 import os
-import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, url_for as flask_url_for
+from flask import Flask
 from flask_login import LoginManager
 
 # Load environment variables from .env file
@@ -119,6 +118,19 @@ def create_app() -> Flask:
 
         # Run PostgreSQL migrations (for unified feed)
         run_migrations()
+
+        # Migrate senders.json to DB if it exists (one-time, idempotent)
+        try:
+            from src.newsletter.migration import migrate_senders_if_needed
+            _senders_json = Path(__file__).parent.parent.parent / "config" / "senders.json"
+            if _senders_json.exists():
+                logging.info(f"Found {_senders_json}, running senders migration...")
+            migrate_senders_if_needed(_senders_json)
+            if not _senders_json.exists() and (_senders_json.parent / (_senders_json.name + ".bak")).exists():
+                logging.info("Senders migration completed successfully.")
+        except RuntimeError as exc:
+            logging.error(f"Startup aborted: {exc}")
+            raise
 
         # Initialize file system directories
         init_data_directories()

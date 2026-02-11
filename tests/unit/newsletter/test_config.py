@@ -108,13 +108,13 @@ class TestNewsletterConfig:
 
 
 class TestConfigLoadSave:
-    """Test config loading and saving functions."""
+    """Test config loading and saving functions (DB-backed)."""
 
-    def test_load_config(self, tmp_path):
-        """Config loads from file correctly."""
-        config_file = tmp_path / "senders.json"
-        config_data = {
-            "senders": {},
+    def test_load_config(self):
+        """load_config reads from Repository."""
+        from unittest.mock import patch
+
+        mock_db = {
             "consolidation_prompt": "test prompt",
             "retention_limit": 100,
             "days_lookback": 30,
@@ -122,17 +122,19 @@ class TestConfigLoadSave:
             "default_parsing_prompt": "test parsing",
             "default_consolidation_prompt": "test consolidation",
             "models": {"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
-            "excluded_topics": ["datasette"]
+            "excluded_topics": ["datasette"],
         }
-        config_file.write_text(json.dumps(config_data), encoding="utf-8")
-
-        loaded_config = load_config(config_file)
+        with patch("src.newsletter.config.Repository") as MockRepo:
+            MockRepo.return_value.get_newsletter_config.return_value = mock_db
+            MockRepo.return_value.get_all_senders.return_value = []
+            loaded_config = load_config()
         assert loaded_config.excluded_topics == ["datasette"]
         assert loaded_config.retention_limit == 100
 
-    def test_save_config(self, tmp_path):
-        """Config saves to file atomically."""
-        config_file = tmp_path / "senders.json"
+    def test_save_config(self):
+        """save_config writes to Repository.set_config_values."""
+        from unittest.mock import patch
+
         config = NewsletterConfig(
             senders={},
             consolidation_prompt="test prompt",
@@ -144,18 +146,18 @@ class TestConfigLoadSave:
             models={"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
             excluded_topics=["datasette", "SQL"]
         )
+        with patch("src.newsletter.config.Repository") as MockRepo:
+            save_config(config)
+            MockRepo.return_value.set_config_values.assert_called_once()
+            saved = MockRepo.return_value.set_config_values.call_args[0][0]
+        assert saved["retention_limit"] == "100"
+        assert json.loads(saved["excluded_topics"]) == ["datasette", "SQL"]
 
-        save_config(config, config_file)
+    def test_save_config_atomic(self):
+        """save_config does not write any temp files."""
+        import tempfile
+        from unittest.mock import patch
 
-        # Verify file was created and contains correct data
-        assert config_file.exists()
-        saved_data = json.loads(config_file.read_text(encoding="utf-8"))
-        assert saved_data["excluded_topics"] == ["datasette", "SQL"]
-        assert saved_data["retention_limit"] == 100
-
-    def test_save_config_atomic(self, tmp_path):
-        """Config save is atomic (uses temp file)."""
-        config_file = tmp_path / "senders.json"
         config = NewsletterConfig(
             senders={},
             consolidation_prompt="test prompt",
@@ -167,9 +169,10 @@ class TestConfigLoadSave:
             models={"parsing": "gemini-2.5-flash", "consolidation": "gemini-2.5-flash"},
             excluded_topics=["test"]
         )
-
-        save_config(config, config_file)
-
-        # Verify no .tmp file left behind
-        temp_files = list(tmp_path.glob("*.tmp"))
-        assert len(temp_files) == 0
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("src.newsletter.config.Repository") as MockRepo:
+                save_config(config)
+                # No files should have been written
+                from pathlib import Path
+                assert list(Path(tmpdir).glob("*.tmp")) == []
+            MockRepo.return_value.set_config_values.assert_called_once()

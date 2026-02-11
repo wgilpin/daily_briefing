@@ -5,8 +5,8 @@ from flask import Blueprint, request, jsonify, current_app, render_template, red
 from flask_login import login_user, logout_user, login_required, current_user
 from pydantic import ValidationError
 
-from src.auth.models import UserRegistrationRequest, UserLoginRequest
-from src.auth.service import create_user, authenticate_user, get_user_by_email, update_last_login
+from src.auth.models import UserLoginRequest
+from src.auth.service import authenticate_user, update_last_login
 from src.db.connection import get_connection
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")

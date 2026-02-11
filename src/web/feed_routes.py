@@ -466,7 +466,10 @@ def settings():
     # Get newsletter config from the newsletter config file
     try:
         from src.newsletter.config import load_senders_config
-        senders = load_senders_config()
+        senders = {
+            email: sender.model_dump()
+            for email, sender in load_senders_config().items()
+        }
     except Exception:
         senders = {}
 
@@ -603,7 +606,8 @@ def api_settings_newsletter_sender():
         HTML: HTMX response fragment with status
     """
     try:
-        from src.newsletter.config import load_senders_config, save_senders_config
+        from src.db.repository import Repository
+        from src.models.newsletter_models import SenderRecord
 
         email = request.form.get("email", "").strip().lower()
         display_name = request.form.get("display_name", "").strip()
@@ -615,25 +619,20 @@ def api_settings_newsletter_sender():
             </div>
             """
 
-        # Load existing senders and add new one
-        senders = load_senders_config()
-        if email in senders:
+        repo = Repository()
+        if repo.sender_exists(email):
             return """
             <div class="status error">
                 <p>This sender is already configured.</p>
             </div>
             """
 
-        senders[email] = {
-            "enabled": True,
-            "parsing_prompt": "",
-        }
-
-        # Add display name if provided
-        if display_name:
-            senders[email]["display_name"] = display_name
-
-        save_senders_config(senders)
+        repo.add_sender(SenderRecord(
+            email=email,
+            display_name=display_name or None,
+            parsing_prompt="",
+            enabled=True,
+        ))
 
         return f"""
         <div class="status success">
@@ -663,7 +662,7 @@ def api_settings_update_display_name():
         HTML: HTMX response fragment with status
     """
     try:
-        from src.newsletter.config import load_senders_config, save_senders_config
+        from src.db.repository import Repository
 
         email = request.form.get("email", "").strip()
         display_name = request.form.get("display_name", "").strip()
@@ -675,23 +674,15 @@ def api_settings_update_display_name():
             </div>
             """
 
-        # Load senders
-        senders = load_senders_config()
-        if email not in senders:
+        repo = Repository()
+        if repo.get_sender(email) is None:
             return """
             <div class="status error">
                 <p>Sender not found.</p>
             </div>
             """
 
-        # Update or remove display name
-        if display_name:
-            senders[email]["display_name"] = display_name
-        else:
-            # Remove display_name if it exists
-            senders[email].pop("display_name", None)
-
-        save_senders_config(senders)
+        repo.update_sender_display_name(email, display_name or None)
 
         return f"""
         <div class="status success">
@@ -720,18 +711,17 @@ def api_settings_delete_sender(email: str):
         HTML: HTMX response fragment with status
     """
     try:
-        from src.newsletter.config import load_senders_config, save_senders_config
+        from src.db.repository import Repository
 
-        senders = load_senders_config()
-        if email not in senders:
+        repo = Repository()
+        if not repo.sender_exists(email):
             return """
             <div class="status error">
                 <p>Sender not found.</p>
             </div>
             """
 
-        del senders[email]
-        save_senders_config(senders)
+        repo.delete_sender(email)
 
         return f"""
         <div class="status success">
@@ -792,11 +782,14 @@ def list_exclusions():
         HTML: List of excluded topics with remove buttons
     """
     try:
-        from src.newsletter.config import load_config
+        import json as _json
+        from src.db.repository import Repository
 
-        config = load_config()
+        repo = Repository()
+        raw = repo.get_config_value("excluded_topics")
+        excluded_topics = _json.loads(raw) if raw else []
 
-        if not config.excluded_topics:
+        if not excluded_topics:
             return """
             <ul id="exclusion-list" class="exclusion-list">
                 <li class="no-exclusions">No topics excluded</li>
@@ -805,7 +798,7 @@ def list_exclusions():
 
         # Build list items
         items_html = []
-        for index, topic in enumerate(config.excluded_topics):
+        for index, topic in enumerate(excluded_topics):
             items_html.append(f"""
             <li class="exclusion-item" data-index="{index}">
                 <span class="topic-text">{topic}</span>
@@ -848,7 +841,8 @@ def add_exclusion():
         HTML: New list item fragment or error message
     """
     try:
-        from src.newsletter.config import load_config, save_config
+        import json as _json
+        from src.db.repository import Repository
 
         topic = request.form.get("topic", "").strip()
 
@@ -867,11 +861,12 @@ def add_exclusion():
             </div>
             """, 400
 
-        # Load config
-        config = load_config()
+        repo = Repository()
+        raw = repo.get_config_value("excluded_topics")
+        excluded_topics = _json.loads(raw) if raw else []
 
         # Check limit
-        if len(config.excluded_topics) >= 50:
+        if len(excluded_topics) >= 50:
             return """
             <div class="alert alert-error" role="alert">
                 Maximum 50 topics allowed. Please remove some before adding more.
@@ -879,11 +874,11 @@ def add_exclusion():
             """, 409
 
         # Add topic
-        config.excluded_topics.append(topic)
-        save_config(config)
+        excluded_topics.append(topic)
+        repo.set_config_value("excluded_topics", _json.dumps(excluded_topics))
 
         # Return new list item
-        index = len(config.excluded_topics) - 1
+        index = len(excluded_topics) - 1
         return f"""
         <li class="exclusion-item" data-index="{index}">
             <span class="topic-text">{topic}</span>
@@ -927,12 +922,15 @@ def delete_exclusion(index: int):
         HTML: Empty response (HTMX removes element) or error message
     """
     try:
-        from src.newsletter.config import load_config, save_config
+        import json as _json
+        from src.db.repository import Repository
 
-        config = load_config()
+        repo = Repository()
+        raw = repo.get_config_value("excluded_topics")
+        excluded_topics = _json.loads(raw) if raw else []
 
         # Validate index
-        if index < 0 or index >= len(config.excluded_topics):
+        if index < 0 or index >= len(excluded_topics):
             return f"""
             <div class="alert alert-error" role="alert">
                 Topic not found at index {index}
@@ -940,8 +938,8 @@ def delete_exclusion(index: int):
             """, 404
 
         # Remove topic
-        config.excluded_topics.pop(index)
-        save_config(config)
+        excluded_topics.pop(index)
+        repo.set_config_value("excluded_topics", _json.dumps(excluded_topics))
 
         # Return empty response - HTMX will remove the element
         return "", 200
