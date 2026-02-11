@@ -3,6 +3,7 @@
 import base64
 import json
 import logging
+import os
 from pathlib import Path
 
 from google.auth.exceptions import RefreshError
@@ -26,30 +27,22 @@ def authenticate_gmail(
     Handles OAuth 2.0 flow, token storage, and automatic token refresh.
     If tokens exist and are valid, uses them. Otherwise, initiates OAuth flow.
 
+    Credentials can be supplied via the GCP_CREDS_JSON environment variable
+    (JSON string) instead of a file, which avoids needing a file mount on
+    hosted deployments. The tokens file is still used for token persistence.
+
     Args:
-        credentials_path: Path to credentials.json file containing OAuth client credentials
+        credentials_path: Path to credentials.json file (used if GCP_CREDS_JSON not set)
         tokens_path: Path to tokens.json file for storing user tokens (default: data/tokens.json)
 
     Returns:
         Credentials: Google auth credentials object (from google-auth library)
 
-    Side Effects:
-        - Opens browser for OAuth flow if tokens don't exist
-        - Creates/updates tokens_path with refresh token
-        - May raise RefreshError if authentication fails
-
     Raises:
-        FileNotFoundError: If credentials_path doesn't exist
+        FileNotFoundError: If credentials_path doesn't exist and GCP_CREDS_JSON is not set
         RefreshError: If token refresh fails and re-authentication is needed
     """
     tokens_path_obj = Path(tokens_path)
-    credentials_path_obj = Path(credentials_path)
-
-    if not credentials_path_obj.exists():
-        raise FileNotFoundError(
-            f"Credentials file not found: {credentials_path}\n"
-            "Please download credentials.json from Google Cloud Console and place it in config/ directory."
-        )
 
     creds = None
 
@@ -58,24 +51,32 @@ def authenticate_gmail(
         try:
             creds = Credentials.from_authorized_user_file(str(tokens_path_obj), SCOPES)
         except (ValueError, json.JSONDecodeError):
-            # Invalid token file, will need to re-authenticate
             creds = None
 
     # If there are no (valid) credentials available, let the user log in
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            # Try to refresh the token
             try:
                 creds.refresh(Request())
             except RefreshError:
-                # Refresh failed, need to re-authenticate
                 creds = None
 
         if not creds:
-            # Start OAuth flow
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(credentials_path_obj), SCOPES
-            )
+            # Load client config from env var or fall back to file
+            creds_json = os.environ.get("GCP_CREDS_JSON")
+            if creds_json:
+                creds_data = json.loads(creds_json)
+                flow = InstalledAppFlow.from_client_config(creds_data, SCOPES)
+            else:
+                credentials_path_obj = Path(credentials_path)
+                if not credentials_path_obj.exists():
+                    raise FileNotFoundError(
+                        f"Credentials file not found: {credentials_path}\n"
+                        "Set GCP_CREDS_JSON env var or place credentials.json in config/."
+                    )
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    str(credentials_path_obj), SCOPES
+                )
             creds = flow.run_local_server(port=0)
 
         # Save the credentials for the next run
